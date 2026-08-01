@@ -169,11 +169,5 @@ export const payments = pgTable(
     paymentDate: date("payment_date").notNull(),
     proofUrl: text("proof_url"),
     description: text("description"),
-  },
-  (table) => [
-    check(
-      "payment_recipient_check",
-      sql`(${table.laborerId} IS NOT NULL AND ${table.vendorId} IS NULL) OR (${table.laborerId} IS NULL AND ${table.vendorId} IS NOT NULL)`,
-    ),
-  ],
+  }
 );
