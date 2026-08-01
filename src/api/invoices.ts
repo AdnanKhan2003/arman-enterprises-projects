@@ -1,5 +1,14 @@
 // File: src/api/invoices.ts
 import { supabase } from "../lib/supabase";
+import { z } from "zod";
+
+export const CreateInvoiceSchema = z.object({
+  project_id: z.string().uuid("Invalid project ID"),
+  type: z.enum(["Expense", "Income", "General"]),
+  amount: z.number().positive("Amount must be positive"),
+  description: z.string().optional(),
+  issue_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+});
 
 export const invoicesApi = {
   /**
@@ -12,7 +21,10 @@ export const invoicesApi = {
     description?: string;
     issue_date: string;
   }) {
-    return await supabase.from("invoices").insert(data).select().single();
+    const parsed = CreateInvoiceSchema.safeParse(data);
+    if (!parsed.success) throw parsed.error;
+
+    return await supabase.from("invoices").insert(parsed.data).select().single();
   },
 
   /**

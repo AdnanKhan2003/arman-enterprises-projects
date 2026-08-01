@@ -1,5 +1,18 @@
 // File: src/api/projects.ts
 import { supabase } from "../lib/supabase";
+import { z } from "zod";
+
+export const CreateProjectSchema = z.object({
+  contractor_id: z.string().uuid("Invalid contractor ID"),
+  client_id: z.string().uuid("Invalid client ID").optional(),
+  name: z.string().min(1, "Project name is required"),
+  description: z.string().optional(),
+});
+
+export const AssignLaborerSchema = z.object({
+  projectId: z.string().uuid("Invalid project ID"),
+  laborerId: z.string().uuid("Invalid laborer ID"),
+});
 
 export const projectsApi = {
   /**
@@ -58,9 +71,12 @@ export const projectsApi = {
     name: string;
     description?: string;
   }) {
+    const parsed = CreateProjectSchema.safeParse(projectData);
+    if (!parsed.success) throw parsed.error;
+
     return await supabase
       .from("projects")
-      .insert(projectData)
+      .insert(parsed.data)
       .select()
       .single();
   },
@@ -69,8 +85,11 @@ export const projectsApi = {
    * Assign a laborer to a project (Contractors only)
    */
   async assignLaborerToProject(projectId: string, laborerId: string) {
+    const parsed = AssignLaborerSchema.safeParse({ projectId, laborerId });
+    if (!parsed.success) throw parsed.error;
+
     return await supabase
       .from("project_assignments")
-      .insert({ project_id: projectId, laborer_id: laborerId });
+      .insert({ project_id: parsed.data.projectId, laborer_id: parsed.data.laborerId });
   },
 };

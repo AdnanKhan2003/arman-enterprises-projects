@@ -1,5 +1,21 @@
 // File: src/api/payments.ts
 import { supabase } from "../lib/supabase";
+import { z } from "zod";
+
+export const LogPaymentSchema = z.object({
+  project_id: z.string().uuid("Invalid project ID"),
+  laborer_id: z.string().uuid("Invalid laborer ID").optional(),
+  vendor_id: z.string().uuid("Invalid vendor ID").optional(),
+  amount: z.number().positive("Amount must be positive"),
+  payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+  description: z.string().optional(),
+  proof_url: z.string().url("Invalid proof URL").optional(),
+}).refine((data) => {
+  return (data.laborer_id !== undefined && data.vendor_id === undefined) ||
+         (data.laborer_id === undefined && data.vendor_id !== undefined);
+}, {
+  message: "Payment must be assigned to exactly one laborer OR one vendor",
+});
 
 export const paymentsApi = {
   /**
@@ -14,7 +30,10 @@ export const paymentsApi = {
     description?: string;
     proof_url?: string;
   }) {
-    return await supabase.from("payments").insert(data).select().single();
+    const parsed = LogPaymentSchema.safeParse(data);
+    if (!parsed.success) throw parsed.error;
+
+    return await supabase.from("payments").insert(parsed.data).select().single();
   },
 
   /**

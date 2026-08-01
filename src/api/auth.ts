@@ -1,15 +1,26 @@
 // File: src/api/auth.ts
 import { supabase } from "../lib/supabase";
+import { z } from "zod";
+
+export const LoginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
 
 export const authApi = {
   /**
    * Log in with Email and Password
    */
   async login(email: string, password: string) {
+    const parsed = LoginSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      return { user: null, profile: null, error: parsed.error };
+    }
+
     const { data: authData, error: authError } =
       await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: parsed.data.email,
+        password: parsed.data.password,
       });
 
     if (authError || !authData.user) {

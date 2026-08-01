@@ -1,5 +1,13 @@
 // File: src/api/contacts.ts
 import { supabase } from "../lib/supabase";
+import { z } from "zod";
+
+export const CreateContactSchema = z.object({
+  contractor_id: z.string().uuid("Invalid contractor ID"),
+  name: z.string().min(1, "Name is required"),
+  phone: z.string().optional(),
+  email: z.string().email("Invalid email").optional().or(z.literal('')),
+});
 
 export const contactsApi = {
   /**
@@ -11,7 +19,10 @@ export const contactsApi = {
     phone?: string;
     email?: string;
   }) {
-    return await supabase.from("clients").insert(data).select().single();
+    const parsed = CreateContactSchema.safeParse(data);
+    if (!parsed.success) throw parsed.error;
+
+    return await supabase.from("clients").insert(parsed.data).select().single();
   },
 
   /**
@@ -23,7 +34,10 @@ export const contactsApi = {
     phone?: string;
     email?: string;
   }) {
-    return await supabase.from("vendors").insert(data).select().single();
+    const parsed = CreateContactSchema.safeParse(data);
+    if (!parsed.success) throw parsed.error;
+
+    return await supabase.from("vendors").insert(parsed.data).select().single();
   },
 
   /**

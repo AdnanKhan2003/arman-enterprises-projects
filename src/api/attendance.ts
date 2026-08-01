@@ -1,5 +1,19 @@
 // File: src/api/attendance.ts
 import { supabase } from "../lib/supabase";
+import { z } from "zod";
+
+export const MarkAttendanceSchema = z.object({
+  project_id: z.string().uuid("Invalid project ID"),
+  laborer_id: z.string().uuid("Invalid laborer ID"),
+  work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format, expected YYYY-MM-DD"),
+  status: z.enum(["Present", "Absent", "Half-day"]),
+});
+
+export const ReviewAttendanceSchema = z.object({
+  attendanceId: z.string().uuid("Invalid attendance ID"),
+  contractorId: z.string().uuid("Invalid contractor ID"),
+  status: z.enum(["Approved", "Rejected"]),
+});
 
 export const attendanceApi = {
   /**
@@ -11,10 +25,13 @@ export const attendanceApi = {
     work_date: string; // Format: YYYY-MM-DD
     status: "Present" | "Absent" | "Half-day";
   }) {
+    const parsed = MarkAttendanceSchema.safeParse(data);
+    if (!parsed.success) throw parsed.error;
+
     return await supabase
       .from("attendance")
       .insert({
-        ...data,
+        ...parsed.data,
         approval_status: "Pending",
       })
       .select()
@@ -45,13 +62,16 @@ export const attendanceApi = {
     contractorId: string,
     status: "Approved" | "Rejected",
   ) {
+    const parsed = ReviewAttendanceSchema.safeParse({ attendanceId, contractorId, status });
+    if (!parsed.success) throw parsed.error;
+
     return await supabase
       .from("attendance")
       .update({
-        approval_status: status,
-        reviewed_by: contractorId,
+        approval_status: parsed.data.status,
+        reviewed_by: parsed.data.contractorId,
       })
-      .eq("id", attendanceId)
+      .eq("id", parsed.data.attendanceId)
       .select()
       .single();
   },
