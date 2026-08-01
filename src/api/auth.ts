@@ -1,5 +1,5 @@
 // File: src/api/auth.ts
-import { supabase } from "../lib/supabase";
+import { authClient } from "../lib/auth-client";
 import { z } from "zod";
 
 export const LoginSchema = z.object({
@@ -9,7 +9,7 @@ export const LoginSchema = z.object({
 
 export const authApi = {
   /**
-   * Log in with Email and Password
+   * Log in with Email and Password using Better Auth
    */
   async login(email: string, password: string) {
     const parsed = LoginSchema.safeParse({ email, password });
@@ -17,49 +17,36 @@ export const authApi = {
       return { user: null, profile: null, error: parsed.error };
     }
 
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({
-        email: parsed.data.email,
-        password: parsed.data.password,
-      });
+    const { data, error } = await authClient.signIn.email({
+      email: parsed.data.email,
+      password: parsed.data.password,
+    });
 
-    if (authError || !authData.user) {
-      return { user: null, profile: null, error: authError };
+    if (error || !data) {
+      return { user: null, profile: null, error };
     }
 
-    // Fetch the user's profile (role, name, etc) from the custom 'users' table
-    const { data: profile, error: profileError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", authData.user.id)
-      .single();
-
-    return { user: authData.user, profile, error: profileError };
+    // Better Auth combines the user and profile into a single object!
+    return { user: data.user, profile: data.user, error: null };
   },
 
   /**
    * Log out the current user
    */
   async logout() {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await authClient.signOut();
     return { error };
   },
 
   /**
-   * Get current session and profile (Useful for checking if logged in on app startup)
+   * Get current session and profile
    */
   async getCurrentProfile() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) return { user: null, profile: null };
+    // getSession is the async method, useSession is the React Hook
+    const { data, error } = await authClient.getSession();
+    
+    if (!data?.user) return { user: null, profile: null, error };
 
-    const { data: profile, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", session.user.id)
-      .single();
-
-    return { user: session.user, profile, error };
+    return { user: data.user, profile: data.user, error };
   },
 };
