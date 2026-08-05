@@ -1,7 +1,7 @@
 import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert
 } from "react-native";
+import { Text } from "../components/Text";
 import { Link } from "expo-router";
 import { authClient } from "../lib/auth-client";
 import { LoginSchema } from "../api/auth";
@@ -17,6 +18,7 @@ import { LoginSchema } from "../api/auth";
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
@@ -76,14 +78,22 @@ export default function SignInScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={[styles.input, errors.password && styles.inputError]}
-              placeholder="••••••••"
-              placeholderTextColor="#64748B"
-              secureTextEntry
-              value={password}
-              onChangeText={(t) => { setPassword(t); setErrors((p) => ({ ...p, password: undefined })) }}
-            />
+            <View style={{ position: "relative", justifyContent: "center" }}>
+              <TextInput
+                style={[styles.input, errors.password && styles.inputError, { paddingRight: 50 }]}
+                placeholder="••••••••"
+                placeholderTextColor="#64748B"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={(t) => { setPassword(t); setErrors((p) => ({ ...p, password: undefined })) }}
+              />
+              <TouchableOpacity 
+                style={{ position: "absolute", right: 16 }} 
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
             {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
           </View>
 
@@ -100,14 +110,7 @@ export default function SignInScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Link href="/sign-up" asChild>
-            <TouchableOpacity>
-              <Text style={styles.linkText}>Create one</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
+
       </View>
     </KeyboardAvoidingView>
   );

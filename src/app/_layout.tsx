@@ -11,7 +11,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (isPending) return;
 
-    const inAuthGroup = segments[0] === "sign-in" || segments[0] === "sign-up";
+    const inAuthGroup = segments[0] === "sign-in";
 
     if (!session?.user) {
       // If user is not logged in and they aren't on an auth screen, send them to sign-in
@@ -43,7 +43,6 @@ export default function RootLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="sign-in" options={{ animation: "fade" }} />
-      <Stack.Screen name="sign-up" options={{ animation: "fade" }} />
       {/* Contractor and Laborer dashboards will naturally render if navigated to */}
     </Stack>
   );

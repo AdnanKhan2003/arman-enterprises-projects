@@ -1,17 +1,16 @@
 // File: src/api/attendance.ts
-import { supabase } from "../lib/supabase";
 import { z } from "zod";
 
 export const MarkAttendanceSchema = z.object({
   project_id: z.string().uuid("Invalid project ID"),
-  laborer_id: z.string().uuid("Invalid laborer ID"),
+  laborer_id: z.string().uuid("Invalid laborer ID").optional(),
   work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format, expected YYYY-MM-DD"),
   status: z.enum(["Present", "Absent", "Half-day"]),
 });
 
 export const ReviewAttendanceSchema = z.object({
   attendanceId: z.string().uuid("Invalid attendance ID"),
-  contractorId: z.string().uuid("Invalid contractor ID"),
+  contractorId: z.string().uuid("Invalid contractor ID").optional(),
   status: z.enum(["Approved", "Rejected"]),
 });
 
@@ -21,37 +20,40 @@ export const attendanceApi = {
    */
   async markAttendance(data: {
     project_id: string;
-    laborer_id: string;
+    laborer_id?: string;
     work_date: string; // Format: YYYY-MM-DD
     status: "Present" | "Absent" | "Half-day";
   }) {
-    const parsed = MarkAttendanceSchema.safeParse(data);
-    if (!parsed.success) throw parsed.error;
+    try {
+      const parsed = MarkAttendanceSchema.safeParse(data);
+      if (!parsed.success) throw parsed.error;
 
-    return await supabase
-      .from("attendance")
-      .insert({
-        ...parsed.data,
-        approval_status: "Pending",
-      })
-      .select()
-      .single();
+      const response = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed.data)
+      });
+      
+      if (!response.ok) throw new Error("Failed to mark attendance");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**
    * Fetch all pending attendance for a specific project (Contractor action)
    */
   async getPendingAttendance(projectId: string) {
-    return await supabase
-      .from("attendance")
-      .select(
-        `
-        *,
-        laborer:users!attendance_laborer_id_fkey (name, phone)
-      `,
-      )
-      .eq("project_id", projectId)
-      .eq("approval_status", "Pending");
+    try {
+      const response = await fetch(`/api/attendance?projectId=${projectId}`);
+      if (!response.ok) throw new Error("Failed to fetch pending attendance");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**
@@ -62,33 +64,35 @@ export const attendanceApi = {
     contractorId: string,
     status: "Approved" | "Rejected",
   ) {
-    const parsed = ReviewAttendanceSchema.safeParse({ attendanceId, contractorId, status });
-    if (!parsed.success) throw parsed.error;
+    try {
+      const parsed = ReviewAttendanceSchema.safeParse({ attendanceId, contractorId, status });
+      if (!parsed.success) throw parsed.error;
 
-    return await supabase
-      .from("attendance")
-      .update({
-        approval_status: parsed.data.status,
-        reviewed_by: parsed.data.contractorId,
-      })
-      .eq("id", parsed.data.attendanceId)
-      .select()
-      .single();
+      const response = await fetch('/api/attendance', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed.data)
+      });
+      
+      if (!response.ok) throw new Error("Failed to review attendance");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**
    * Fetch a laborer's attendance history (Laborer action)
    */
   async getLaborerAttendanceHistory(laborerId: string) {
-    return await supabase
-      .from("attendance")
-      .select(
-        `
-        *,
-        project:projects (name)
-      `,
-      )
-      .eq("laborer_id", laborerId)
-      .order("work_date", { ascending: false });
-  },
+    try {
+      const response = await fetch('/api/attendance');
+      if (!response.ok) throw new Error("Failed to fetch attendance history");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
 };

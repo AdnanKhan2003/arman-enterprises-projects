@@ -1,21 +1,30 @@
 // File: src/api/payments.ts
-import { supabase } from "../lib/supabase";
 import { z } from "zod";
+import { supabase } from "../lib/supabase";
 
-export const LogPaymentSchema = z.object({
-  project_id: z.string().uuid("Invalid project ID"),
-  laborer_id: z.string().uuid("Invalid laborer ID").optional(),
-  vendor_id: z.string().uuid("Invalid vendor ID").optional(),
-  amount: z.number().positive("Amount must be positive"),
-  payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
-  description: z.string().optional(),
-  proof_url: z.string().url("Invalid proof URL").optional(),
-}).refine((data) => {
-  return (data.laborer_id !== undefined && data.vendor_id === undefined) ||
-         (data.laborer_id === undefined && data.vendor_id !== undefined);
-}, {
-  message: "Payment must be assigned to exactly one laborer OR one vendor",
-});
+export const LogPaymentSchema = z
+  .object({
+    project_id: z.string().uuid("Invalid project ID"),
+    laborer_id: z.string().uuid("Invalid laborer ID").optional(),
+    vendor_id: z.string().uuid("Invalid vendor ID").optional(),
+    amount: z.number().positive("Amount must be positive"),
+    payment_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+    description: z.string().optional(),
+    proof_url: z.string().url("Invalid proof URL").optional(),
+  })
+  .refine(
+    (data) => {
+      return (
+        (data.laborer_id !== undefined && data.vendor_id === undefined) ||
+        (data.laborer_id === undefined && data.vendor_id !== undefined)
+      );
+    },
+    {
+      message: "Payment must be assigned to exactly one laborer OR one vendor",
+    },
+  );
 
 export const paymentsApi = {
   /**
@@ -30,43 +39,58 @@ export const paymentsApi = {
     description?: string;
     proof_url?: string;
   }) {
-    const parsed = LogPaymentSchema.safeParse(data);
-    if (!parsed.success) throw parsed.error;
+    try {
+      const parsed = LogPaymentSchema.safeParse(data);
+      if (!parsed.success) throw parsed.error;
 
-    return await supabase.from("payments").insert(parsed.data).select().single();
+      const response = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: parsed.data.project_id,
+          laborerId: parsed.data.laborer_id,
+          vendorId: parsed.data.vendor_id,
+          amount: parsed.data.amount,
+          paymentDate: parsed.data.payment_date,
+          description: parsed.data.description,
+          proofUrl: parsed.data.proof_url,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to log payment");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**
    * Fetch all payments for a specific project (Contractor action)
    */
   async getProjectPayments(projectId: string) {
-    return await supabase
-      .from("payments")
-      .select(
-        `
-        *,
-        laborer:users!payments_laborer_id_fkey (name, phone),
-        vendor:vendors (name, phone)
-      `,
-      )
-      .eq("project_id", projectId)
-      .order("payment_date", { ascending: false });
+    try {
+      const response = await fetch(`/api/payments?projectId=${projectId}`);
+      if (!response.ok) throw new Error("Failed to fetch project payments");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**
    * Fetch all payments received by a specific laborer (Laborer action)
    */
   async getLaborerPayments(laborerId: string) {
-    return await supabase
-      .from("payments")
-      .select(
-        `
-        *,
-        project:projects (name)
-      `,
-      )
-      .eq("laborer_id", laborerId)
-      .order("payment_date", { ascending: false });
+    try {
+      const response = await fetch("/api/payments");
+      if (!response.ok) throw new Error("Failed to fetch laborer payments");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**

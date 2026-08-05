@@ -1,5 +1,4 @@
 // File: src/api/invoices.ts
-import { supabase } from "../lib/supabase";
 import { z } from "zod";
 
 export const CreateInvoiceSchema = z.object({
@@ -21,69 +20,63 @@ export const invoicesApi = {
     description?: string;
     issue_date: string;
   }) {
-    const parsed = CreateInvoiceSchema.safeParse(data);
-    if (!parsed.success) throw parsed.error;
+    try {
+      const parsed = CreateInvoiceSchema.safeParse(data);
+      if (!parsed.success) throw parsed.error;
 
-    return await supabase.from("invoices").insert(parsed.data).select().single();
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: parsed.data.project_id,
+          type: parsed.data.type,
+          amount: parsed.data.amount,
+          description: parsed.data.description,
+          issueDate: parsed.data.issue_date,
+        })
+      });
+      
+      if (!response.ok) throw new Error("Failed to create invoice");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**
    * Fetch all invoices for a project
    */
   async getProjectInvoices(projectId: string) {
-    return await supabase
-      .from("invoices")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("issue_date", { ascending: false });
+    try {
+      const response = await fetch(`/api/invoices?projectId=${projectId}`);
+      if (!response.ok) throw new Error("Failed to fetch project invoices");
+      const result = await response.json();
+      return { data: result.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   },
 
   /**
    * Calculate Financial Summary (Total Income, Total Expenses, Total Paid, Profit)
    */
   async getProjectFinancialSummary(projectId: string) {
-    // 1. Fetch Invoices
-    const { data: invoices, error: invoiceError } = await supabase
-      .from("invoices")
-      .select("type, amount")
-      .eq("project_id", projectId);
-
-    if (invoiceError) throw invoiceError;
-
-    // 2. Fetch Payments (Money already paid out to laborers/vendors)
-    const { data: payments, error: paymentError } = await supabase
-      .from("payments")
-      .select("amount")
-      .eq("project_id", projectId);
-
-    if (paymentError) throw paymentError;
-
-    // 3. Calculate Totals
-    let totalIncome = 0;
-    let totalInvoicedExpenses = 0;
-    let totalPaidOut = 0;
-
-    invoices?.forEach((invoice) => {
-      const amount = Number(invoice.amount);
-      if (invoice.type === "Income") totalIncome += amount;
-      if (invoice.type === "Expense") totalInvoicedExpenses += amount;
-    });
-
-    payments?.forEach((payment) => {
-      totalPaidOut += Number(payment.amount);
-    });
-
-    // Total actual expenses = Invoiced Expenses + Money already paid out
-    const totalExpenses = totalInvoicedExpenses + totalPaidOut;
-    const profitOrLoss = totalIncome - totalExpenses;
-
-    return {
-      totalIncome,
-      totalInvoicedExpenses,
-      totalPaidOut,
-      totalExpenses,
-      profitOrLoss,
-      isProfitable: profitOrLoss >= 0,
-    };
-  },
+    try {
+      const response = await fetch(`/api/invoices?projectId=${projectId}&summary=true`);
+      if (!response.ok) throw new Error("Failed to fetch project financial summary");
+      const result = await response.json();
+      
+      return result.data; 
+    } catch (error) {
+      return {
+        totalIncome: 0,
+        totalInvoicedExpenses: 0,
+        totalPaidOut: 0,
+        totalExpenses: 0,
+        profitOrLoss: 0,
+        isProfitable: true,
+      };
+    }
+  }
 };

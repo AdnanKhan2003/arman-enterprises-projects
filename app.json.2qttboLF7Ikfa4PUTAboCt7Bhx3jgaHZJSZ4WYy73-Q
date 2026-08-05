@@ -17,11 +17,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.siteledger"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "server",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -34,15 +33,7 @@
           "imageWidth": 76
         }
       ],
-      [
-        "expo-font",
-        {
-          "fonts": [
-            "node_modules/@expo-google-fonts/poppins/400Regular/Poppins_400Regular.ttf",
-            "node_modules/@expo-google-fonts/poppins/700Bold/Poppins_700Bold.ttf"
-          ]
-        }
-      ]
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
