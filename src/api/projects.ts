@@ -1,10 +1,11 @@
-// File: src/api/projects.ts
 import { z } from "zod";
+import { apiFetch } from "../lib/auth-client";
 
 export const CreateProjectSchema = z.object({
   contractor_id: z.string().uuid("Invalid contractor ID").optional(),
   client_id: z.string().uuid("Invalid client ID").optional(),
   name: z.string().min(1, "Project name is required"),
+  location: z.string().optional(),
   description: z.string().optional(),
 });
 
@@ -19,10 +20,8 @@ export const projectsApi = {
    */
   async getProjects(role: "contractor" | "laborer", userId: string) {
     try {
-      const response = await fetch('/api/projects');
-      if (!response.ok) throw new Error("Failed to fetch projects");
-      const result = await response.json();
-      return { data: result.data, error: null };
+      const json = await apiFetch('/api/projects');
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -33,10 +32,8 @@ export const projectsApi = {
    */
   async getProjectDetails(projectId: string) {
     try {
-      const response = await fetch(`/api/projects/${projectId}`);
-      if (!response.ok) throw new Error("Failed to fetch project details");
-      const result = await response.json();
-      return { data: result.data, error: null };
+      const json = await apiFetch(`/api/projects/${projectId}`);
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -49,22 +46,25 @@ export const projectsApi = {
     contractor_id: string;
     client_id?: string;
     name: string;
+    location?: string;
     description?: string;
   }) {
     try {
       const parsed = CreateProjectSchema.safeParse(projectData);
       if (!parsed.success) throw parsed.error;
 
-      const response = await fetch('/api/projects', {
+      const json = await apiFetch('/api/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed.data)
+        body: JSON.stringify({
+          contractor_id: parsed.data.contractor_id,
+          client_id: parsed.data.client_id,
+          name: parsed.data.name,
+          location: parsed.data.location,
+          description: parsed.data.description,
+        })
       });
       
-      if (!response.ok) throw new Error("Failed to create project");
-      const result = await response.json();
-      
-      return { data: result.data, error: null };
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -78,16 +78,12 @@ export const projectsApi = {
       const parsed = AssignLaborerSchema.safeParse({ projectId, laborerId });
       if (!parsed.success) throw parsed.error;
 
-      const response = await fetch('/api/projects/assign', {
+      const json = await apiFetch('/api/projects/assign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data)
       });
       
-      if (!response.ok) throw new Error("Failed to assign laborer");
-      const result = await response.json();
-      
-      return { data: result.data, error: null };
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }

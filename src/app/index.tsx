@@ -1,21 +1,14 @@
-import { StyleSheet, View } from "react-native";
-import { Text } from "../components/Text";
-import "../../global.css";
+
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Text } from "../components/ui/Text";
 
 export default function Index() {
   return (
-    <View className="flex-1 justify-center items-center bg-white">
+    <SafeAreaView className="flex-1 justify-center items-center bg-white">
       <Text className="font-bold text-blue-500 text-xl">
         Welcome to Nativewind!
       </Text>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

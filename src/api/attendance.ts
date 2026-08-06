@@ -1,5 +1,5 @@
-// File: src/api/attendance.ts
 import { z } from "zod";
+import { apiFetch } from "../lib/auth-client";
 
 export const MarkAttendanceSchema = z.object({
   project_id: z.string().uuid("Invalid project ID"),
@@ -28,15 +28,12 @@ export const attendanceApi = {
       const parsed = MarkAttendanceSchema.safeParse(data);
       if (!parsed.success) throw parsed.error;
 
-      const response = await fetch('/api/attendance', {
+      const json = await apiFetch('/api/attendance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data)
       });
       
-      if (!response.ok) throw new Error("Failed to mark attendance");
-      const result = await response.json();
-      return { data: result.data, error: null };
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -47,10 +44,8 @@ export const attendanceApi = {
    */
   async getPendingAttendance(projectId: string) {
     try {
-      const response = await fetch(`/api/attendance?projectId=${projectId}`);
-      if (!response.ok) throw new Error("Failed to fetch pending attendance");
-      const result = await response.json();
-      return { data: result.data, error: null };
+      const json = await apiFetch(`/api/attendance?projectId=${projectId}`);
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -68,15 +63,12 @@ export const attendanceApi = {
       const parsed = ReviewAttendanceSchema.safeParse({ attendanceId, contractorId, status });
       if (!parsed.success) throw parsed.error;
 
-      const response = await fetch('/api/attendance', {
+      const json = await apiFetch('/api/attendance', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data)
       });
       
-      if (!response.ok) throw new Error("Failed to review attendance");
-      const result = await response.json();
-      return { data: result.data, error: null };
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -87,10 +79,8 @@ export const attendanceApi = {
    */
   async getLaborerAttendanceHistory(laborerId: string) {
     try {
-      const response = await fetch('/api/attendance');
-      if (!response.ok) throw new Error("Failed to fetch attendance history");
-      const result = await response.json();
-      return { data: result.data, error: null };
+      const json = await apiFetch('/api/attendance');
+      return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
     }

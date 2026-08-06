@@ -88,6 +88,8 @@ export const vendors = pgTable("vendors", {
     .references(() => users.id)
     .notNull(),
   name: text("name").notNull(),
+  address: text("address"),
+  vendorType: text("vendor_type"),
   phone: text("phone"),
   email: text("email"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -99,6 +101,7 @@ export const clients = pgTable("clients", {
     .references(() => users.id)
     .notNull(),
   name: text("name").notNull(),
+  address: text("address"),
   phone: text("phone"),
   email: text("email"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -112,6 +115,7 @@ export const projects = pgTable("projects", {
   clientId: uuid("client_id").references(() => clients.id),
   name: text("name").notNull(),
   description: text("description"),
+  location: text("location"),
   status: text("status").default("active").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

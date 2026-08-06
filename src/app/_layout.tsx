@@ -1,7 +1,10 @@
+import ThemeProvider from "@/components/ThemeProvider";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import "../../global.css";
 import { authClient } from "../lib/auth-client";
-import { ActivityIndicator, View, StyleSheet } from "react-native";
 
 export default function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
@@ -20,7 +23,11 @@ export default function RootLayout() {
       }
     } else {
       // If user IS logged in and trying to view an auth screen (or root index), send to dashboard
-      if (inAuthGroup || (segments as string[]).length === 0 || (segments[0] as string) === "") {
+      if (
+        inAuthGroup ||
+        (segments as string[]).length === 0 ||
+        (segments[0] as string) === ""
+      ) {
         // Redirect based on custom 'role' field we added to the schema
         if ((session.user as any).role === "contractor") {
           router.replace("/contractor" as any);
@@ -34,25 +41,26 @@ export default function RootLayout() {
   // Show a loading spinner while checking auth status
   if (isPending) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#000000" />
+      <View className="flex-1 justify-center items-center bg-white dark:bg-slate-900">
+        <ActivityIndicator size="large" color="#3B82F6" />
       </View>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="sign-in" options={{ animation: "fade" }} />
-      {/* Contractor and Laborer dashboards will naturally render if navigated to */}
-    </Stack>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "#FFFFFF" },
+          }}
+        >
+          <Stack.Screen name="sign-in" />
+          <Stack.Screen name="contractor/index" />
+          <Stack.Screen name="laborer/index" />
+        </Stack>
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
-});

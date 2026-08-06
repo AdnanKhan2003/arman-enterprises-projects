@@ -67,7 +67,10 @@ export async function POST(request: Request) {
   const newProject = await db
     .insert(projects)
     .values({
-      ...data,
+      name: data.name,
+      description: data.description,
+      location: data.location,
+      clientId: data.client_id,
       contractorId: session.user.id,
     })
     .returning();

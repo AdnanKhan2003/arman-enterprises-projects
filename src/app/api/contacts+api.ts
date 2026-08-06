@@ -27,13 +27,26 @@ export async function POST(request: Request) {
   if (type === "client") {
     const newClient = await db
       .insert(clients)
-      .values({ ...data, contractorId: session.user.id })
+      .values({ 
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        contractorId: session.user.id 
+      })
       .returning();
     return Response.json(newClient[0]);
   } else {
     const newVendor = await db
       .insert(vendors)
-      .values({ ...data, contractorId: session.user.id })
+      .values({ 
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        vendorType: data.vendor_type,
+        contractorId: session.user.id 
+      })
       .returning();
     return Response.json(newVendor[0]);
   }
