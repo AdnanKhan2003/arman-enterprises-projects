@@ -3,9 +3,10 @@ import { View, ScrollView, RefreshControl, useColorScheme, Pressable, Modal, Ale
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
+import { CustomModal } from "../../components/ui/CustomModal";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
-import { ThemeToggle } from "../../components/ui/ThemeToggle";
 import { authClient } from "../../lib/auth-client";
 import { contactsApi } from "../../api/contact";
 import { Ionicons } from "@expo/vector-icons";
@@ -159,17 +160,9 @@ export default function ContactsScreen() {
 
   return (
     <Screen>
-      <View className="flex-row items-center justify-between px-5 pt-8 pb-6">
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} className="active:opacity-50">
-            <Ionicons name="arrow-back" size={24} color={isDark ? "#F8FAFC" : "#0F172A"} />
-          </Pressable>
-          <Text className="text-3xl font-bold text-slate-900 dark:text-slate-50">Contacts</Text>
-        </View>
-        <ThemeToggle />
-      </View>
+      <PageHeader title="Contacts" />
 
-      <View className="flex-row px-5 mb-4 gap-2">
+      <View className="px-5 pb-2 flex-row justify-between items-center gap-2">
         <Pressable 
           className={`flex-1 py-2 rounded-lg items-center ${activeTab === 'clients' ? 'bg-slate-900 dark:bg-slate-50' : 'bg-slate-200 dark:bg-slate-800'}`}
           onPress={() => setActiveTab("clients")}
@@ -241,89 +234,81 @@ export default function ContactsScreen() {
       </ScrollView>
 
       {/* Create/Edit Contact Modal */}
-      <Modal visible={contactModalVisible} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-center p-5">
-          <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
-            <Text className="text-xl font-bold mb-5 text-slate-900 dark:text-slate-50">
-              {editingContactId ? "Edit" : "New"} {contactType === "client" ? "Client" : "Vendor"}
-            </Text>
-            <Input 
-              label="Name" 
-              placeholder="e.g. Acme Corp" 
-              value={contactName} 
-              onChangeText={setContactName} 
-            />
-            <Input 
-              label="Address" 
-              placeholder="e.g. 456 Industrial Blvd" 
-              value={contactAddress} 
-              onChangeText={setContactAddress} 
-            />
-            <Input 
-              label="Phone Number" 
-              placeholder="e.g. 555-123-4567" 
-              value={contactPhone} 
-              onChangeText={setContactPhone} 
-              keyboardType="phone-pad"
-            />
-            <Input 
-              label="Email Address" 
-              placeholder="e.g. contact@company.com" 
-              value={contactEmail} 
-              onChangeText={setContactEmail} 
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            {contactType === "vendor" && (
-              <Input 
-                label="Vendor Type" 
-                placeholder="e.g. Hardware, Plumbing" 
-                value={contactVendorType} 
-                onChangeText={setContactVendorType} 
-              />
-            )}
-            <View className="flex-row mt-6 gap-3">
-              <Button title="Cancel" variant="outline" onPress={() => setContactModalVisible(false)} className="flex-1" />
-              <Button title={editingContactId ? "Save Changes" : "Create"} onPress={handleSaveContact} loading={creating} className="flex-1" />
-            </View>
-          </View>
+      <CustomModal visible={contactModalVisible}>
+        <Text className="text-xl font-bold mb-5 text-slate-900 dark:text-slate-50">
+          {editingContactId ? "Edit" : "New"} {contactType === "client" ? "Client" : "Vendor"}
+        </Text>
+        <Input 
+          label="Name" 
+          placeholder="e.g. Acme Corp" 
+          value={contactName} 
+          onChangeText={setContactName} 
+        />
+        <Input 
+          label="Address" 
+          placeholder="e.g. 456 Industrial Blvd" 
+          value={contactAddress} 
+          onChangeText={setContactAddress} 
+        />
+        <Input 
+          label="Phone Number" 
+          placeholder="e.g. 555-123-4567" 
+          value={contactPhone} 
+          onChangeText={setContactPhone} 
+          keyboardType="phone-pad"
+        />
+        <Input 
+          label="Email Address" 
+          placeholder="e.g. contact@company.com" 
+          value={contactEmail} 
+          onChangeText={setContactEmail} 
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        {contactType === "vendor" && (
+          <Input 
+            label="Vendor Type" 
+            placeholder="e.g. Hardware, Plumbing" 
+            value={contactVendorType} 
+            onChangeText={setContactVendorType} 
+          />
+        )}
+        <View className="flex-row mt-6 gap-3">
+          <Button title="Cancel" variant="outline" onPress={() => setContactModalVisible(false)} className="flex-1" />
+          <Button title={editingContactId ? "Save Changes" : "Create"} onPress={handleSaveContact} loading={creating} className="flex-1" />
         </View>
-      </Modal>
+      </CustomModal>
 
       {/* Delete Confirmation Modal */}
-      <Modal visible={deleteModalVisible} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center p-5">
-          <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
-            <View className="items-center mb-4">
-              <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">
-                <Ionicons name="warning" size={32} color="#ef4444" />
-              </View>
-              <Text className="text-xl font-bold text-center text-slate-900 dark:text-slate-50">Delete Contact?</Text>
-              <Text className="text-base text-center mt-2 text-slate-500 dark:text-slate-400">
-                Are you sure you want to delete this contact? This action cannot be undone.
-              </Text>
-            </View>
-            <View className="flex-row mt-4 gap-3">
-              <Button 
-                title="Cancel" 
-                variant="outline" 
-                onPress={() => setDeleteModalVisible(false)} 
-                className="flex-1" 
-                disabled={creating}
-              />
-              <Pressable 
-                className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
-                onPress={confirmDeleteContact}
-                disabled={creating}
-              >
-                <Text className="text-[15px] font-semibold text-white">
-                  {creating ? "Deleting..." : "Delete"}
-                </Text>
-              </Pressable>
-            </View>
+      <CustomModal visible={deleteModalVisible}>
+        <View className="items-center mb-4">
+          <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">
+            <Ionicons name="warning" size={32} color="#ef4444" />
           </View>
+          <Text className="text-xl font-bold text-center text-slate-900 dark:text-slate-50">Delete Contact?</Text>
+          <Text className="text-base text-center mt-2 text-slate-500 dark:text-slate-400">
+            Are you sure you want to delete this contact? This action cannot be undone.
+          </Text>
         </View>
-      </Modal>
+        <View className="flex-row mt-4 gap-3">
+          <Button 
+            title="Cancel" 
+            variant="outline" 
+            onPress={() => setDeleteModalVisible(false)} 
+            className="flex-1" 
+            disabled={creating}
+          />
+          <Pressable 
+            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
+            onPress={confirmDeleteContact}
+            disabled={creating}
+          >
+            <Text className="text-[15px] font-semibold text-white">
+              {creating ? "Deleting..." : "Delete"}
+            </Text>
+          </Pressable>
+        </View>
+      </CustomModal>
     </Screen>
   );
 }

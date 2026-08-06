@@ -3,6 +3,8 @@ import { View, ScrollView, RefreshControl, Modal, useColorScheme, Pressable } fr
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
+import { CustomModal } from "../../components/ui/CustomModal";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
@@ -139,15 +141,7 @@ export default function LaborersScreen() {
 
   return (
     <Screen>
-      <View className="flex-row items-center justify-between px-5 pt-8 pb-6">
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} className="active:opacity-50">
-            <Ionicons name="arrow-back" size={24} color={isDark ? "#F8FAFC" : "#0F172A"} />
-          </Pressable>
-          <Text className="text-3xl font-bold text-slate-900 dark:text-slate-50">Laborers</Text>
-        </View>
-        <ThemeToggle />
-      </View>
+      <PageHeader title="Laborers" />
 
       <View className="px-5 pb-2 flex-row justify-between items-center">
         <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">
@@ -218,107 +212,95 @@ export default function LaborersScreen() {
       </ScrollView>
 
       {/* Create Laborer Modal */}
-      <Modal visible={modalVisible} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center p-5">
-          <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
-            <Text className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-50">New Laborer</Text>
-            <Text className="text-sm mb-5 text-slate-500 dark:text-slate-400">
-              Create login credentials for a laborer. They can use these details to log into the app.
-            </Text>
+      <CustomModal visible={modalVisible}>
+        <Text className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-50">New Laborer</Text>
+        <Text className="text-sm mb-5 text-slate-500 dark:text-slate-400">
+          Create login credentials for a laborer. They can use these details to log into the app.
+        </Text>
 
-            <Input 
-              label="Full Name" 
-              placeholder="e.g. John Doe" 
-              value={name} 
-              onChangeText={setName} 
-            />
-            
-            <Input 
-              label="Email Address" 
-              placeholder="e.g. john@example.com" 
-              value={email} 
-              onChangeText={setEmail} 
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+        <Input 
+          label="Full Name" 
+          placeholder="e.g. John Doe" 
+          value={name} 
+          onChangeText={setName} 
+        />
+        
+        <Input 
+          label="Email Address" 
+          placeholder="e.g. john@example.com" 
+          value={email} 
+          onChangeText={setEmail} 
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
 
-            <Input 
-              label="Temporary Password" 
-              placeholder="e.g. password123" 
-              value={password} 
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              rightIcon={
-                <Pressable onPress={() => setShowPassword(!showPassword)} className="p-2">
-                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={isDark ? "#94A3B8" : "#64748B"} />
-                </Pressable>
-              }
-            />
+        <Input 
+          label="Temporary Password" 
+          placeholder="e.g. password123" 
+          value={password} 
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+          rightIcon={
+            <Pressable onPress={() => setShowPassword(!showPassword)} className="p-2">
+              <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+            </Pressable>
+          }
+        />
 
-            <View className="flex-row mt-6 gap-3">
-              <Button title="Cancel" variant="outline" onPress={() => setModalVisible(false)} className="flex-1" />
-              <Button title="Create" onPress={handleCreateLaborer} loading={creating} className="flex-1" />
-            </View>
-          </View>
+        <View className="flex-row mt-6 gap-3">
+          <Button title="Cancel" variant="outline" onPress={() => setModalVisible(false)} className="flex-1" />
+          <Button title="Create" onPress={handleCreateLaborer} loading={creating} className="flex-1" />
         </View>
-      </Modal>
+      </CustomModal>
 
       {/* Edit Laborer Modal */}
-      <Modal visible={editModalVisible} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center p-5">
-          <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
-            <Text className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-50">Edit Laborer</Text>
-            <Text className="text-sm mb-5 text-slate-500 dark:text-slate-400">
-              Update the laborer's full name. Emails cannot be changed.
-            </Text>
-            <Input 
-              label="Full Name" 
-              placeholder="e.g. John Doe" 
-              value={name} 
-              onChangeText={setName} 
-            />
-            <View className="flex-row mt-6 gap-3">
-              <Button title="Cancel" variant="outline" onPress={() => setEditModalVisible(false)} className="flex-1" />
-              <Button title="Save Changes" onPress={handleUpdateLaborer} loading={creating} className="flex-1" />
-            </View>
-          </View>
+      <CustomModal visible={editModalVisible}>
+        <Text className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-50">Edit Laborer</Text>
+        <Text className="text-sm mb-5 text-slate-500 dark:text-slate-400">
+          Update the laborer's full name. Emails cannot be changed.
+        </Text>
+        <Input 
+          label="Full Name" 
+          placeholder="e.g. John Doe" 
+          value={name} 
+          onChangeText={setName} 
+        />
+        <View className="flex-row mt-6 gap-3">
+          <Button title="Cancel" variant="outline" onPress={() => setEditModalVisible(false)} className="flex-1" />
+          <Button title="Save Changes" onPress={handleUpdateLaborer} loading={creating} className="flex-1" />
         </View>
-      </Modal>
+      </CustomModal>
 
       {/* Delete Confirmation Modal */}
-      <Modal visible={deleteModalVisible} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center p-5">
-          <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
-            <View className="items-center mb-4">
-              <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">
-                <Ionicons name="warning" size={32} color="#ef4444" />
-              </View>
-              <Text className="text-xl font-bold text-center text-slate-900 dark:text-slate-50">Delete Laborer?</Text>
-              <Text className="text-base text-center mt-2 text-slate-500 dark:text-slate-400">
-                Are you sure you want to delete <Text className="font-bold">{laborerToDelete?.name}</Text>? This action will also delete all their attendance records and assignments. This cannot be undone.
-              </Text>
-            </View>
-            <View className="flex-row mt-4 gap-3">
-              <Button 
-                title="Cancel" 
-                variant="outline" 
-                onPress={() => setDeleteModalVisible(false)} 
-                className="flex-1" 
-                disabled={creating}
-              />
-              <Pressable 
-                className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
-                onPress={confirmDeleteLaborer}
-                disabled={creating}
-              >
-                <Text className="text-[15px] font-semibold text-white">
-                  {creating ? "Deleting..." : "Delete"}
-                </Text>
-              </Pressable>
-            </View>
+      <CustomModal visible={deleteModalVisible}>
+        <View className="items-center mb-4">
+          <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">
+            <Ionicons name="warning" size={32} color="#ef4444" />
           </View>
+          <Text className="text-xl font-bold text-center text-slate-900 dark:text-slate-50">Delete Laborer?</Text>
+          <Text className="text-base text-center mt-2 text-slate-500 dark:text-slate-400">
+            Are you sure you want to delete <Text className="font-bold">{laborerToDelete?.name}</Text>? This action will also delete all their attendance records and assignments. This cannot be undone.
+          </Text>
         </View>
-      </Modal>
+        <View className="flex-row mt-4 gap-3">
+          <Button 
+            title="Cancel" 
+            variant="outline" 
+            onPress={() => setDeleteModalVisible(false)} 
+            className="flex-1" 
+            disabled={creating}
+          />
+          <Pressable 
+            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
+            onPress={confirmDeleteLaborer}
+            disabled={creating}
+          >
+            <Text className="text-[15px] font-semibold text-white">
+              {creating ? "Deleting..." : "Delete"}
+            </Text>
+          </Pressable>
+        </View>
+      </CustomModal>
     </Screen>
   );
 }
