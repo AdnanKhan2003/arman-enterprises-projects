@@ -153,9 +153,10 @@ export const attendance = pgTable("attendance", {
 
 export const invoices = pgTable("invoices", {
   id: uuid("id").primaryKey().defaultRandom(),
-  projectId: uuid("project_id")
-    .references(() => projects.id)
-    .notNull(),
+  contractorId: text("contractor_id").references(() => users.id).notNull(),
+  projectId: uuid("project_id").references(() => projects.id),
+  clientId: uuid("client_id").references(() => clients.id),
+  thirdPartyName: text("third_party_name"),
   type: invoiceTypeEnum("type").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description"),

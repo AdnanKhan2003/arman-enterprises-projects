@@ -15,6 +15,13 @@
       "when": 1786016153012,
       "tag": "0001_old_gressill",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786019317335,
+      "tag": "0002_melted_harpoon",
+      "breakpoints": true
     }
   ]
 }

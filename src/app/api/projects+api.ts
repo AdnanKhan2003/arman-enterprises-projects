@@ -141,7 +141,6 @@ export async function PATCH(request: Request) {
         location,
         description,
         clientId: client_id || null,
-        updatedAt: new Date(),
       })
       .where(eq(projects.id, id))
       .returning();
