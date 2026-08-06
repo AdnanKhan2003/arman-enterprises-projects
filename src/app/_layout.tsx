@@ -1,6 +1,7 @@
 import ThemeProvider from "@/components/ThemeProvider";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
+import Toast from "react-native-toast-message";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../../global.css";
@@ -48,19 +49,22 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <SafeAreaProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: "#FFFFFF" },
-          }}
-        >
-          <Stack.Screen name="sign-in" />
-          <Stack.Screen name="contractor/index" />
-          <Stack.Screen name="laborer/index" />
-        </Stack>
-      </SafeAreaProvider>
-    </ThemeProvider>
+    <>
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: "#FFFFFF" },
+            }}
+          >
+            <Stack.Screen name="sign-in" />
+            <Stack.Screen name="contractor/index" />
+            <Stack.Screen name="laborer/index" />
+          </Stack>
+        </SafeAreaProvider>
+      </ThemeProvider>
+      <Toast />
+    </>
   );
 }

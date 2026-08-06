@@ -1,4 +1,5 @@
 import { Pressable, PressableProps, ActivityIndicator } from "react-native";
+import { useColorScheme } from "nativewind";
 import { Text } from "./Text";
 
 interface ButtonProps extends PressableProps {
@@ -9,6 +10,9 @@ interface ButtonProps extends PressableProps {
 }
 
 export function Button({ style, className, title, variant = "primary", loading = false, disabled, ...props }: ButtonProps) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
+
   const getVariantClasses = () => {
     switch (variant) {
       case "primary":
@@ -32,7 +36,10 @@ export function Button({ style, className, title, variant = "primary", loading =
   };
 
   const getIndicatorColor = () => {
-    return variant === "primary" ? "#94a3b8" : "#64748b"; // fallback color, normally we'd want text color
+    if (variant === "primary") {
+      return isDark ? "#0f172a" : "#f8fafc"; // slate-900 on dark (light bg), slate-50 on light (dark bg)
+    }
+    return isDark ? "#f8fafc" : "#0f172a"; // reverse for outline/secondary
   };
 
   return (

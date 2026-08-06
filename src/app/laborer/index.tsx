@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, RefreshControl, useColorScheme, Pressable, Alert } from "react-native";
+import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
@@ -10,6 +10,7 @@ import { authClient } from "../../lib/auth-client";
 import { projectsApi } from "../../api/projects";
 import { attendanceApi } from "../../api/attendance";
 import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 
 export default function LaborerDashboard() {
   const colorScheme = useColorScheme();
@@ -62,9 +63,17 @@ export default function LaborerDashboard() {
     });
     
     if (res.error) {
-      Alert.alert("Error", "Could not mark attendance.");
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Could not mark attendance.'
+      });
     } else {
-      Alert.alert("Success", "Attendance marked for today!");
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Attendance marked for today!'
+      });
       await fetchData();
     }
     

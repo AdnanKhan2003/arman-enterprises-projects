@@ -6,7 +6,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
-import { Alert } from "react-native";
+import Toast from "react-native-toast-message";
 import { authApi } from "../../api/auth";
 import { authClient } from "../../lib/auth-client";
 import { projectsApi } from "../../api/projects";
@@ -63,7 +63,11 @@ export default function ContractorDashboard() {
       setProjectModalVisible(false);
       await fetchData();
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to create project");
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: e.message || "Failed to create project"
+      });
     } finally {
       setCreating(false);
     }

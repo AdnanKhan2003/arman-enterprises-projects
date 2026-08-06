@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, RefreshControl, useColorScheme, Pressable, Modal } from "react-native";
+import { View, ScrollView, RefreshControl, useColorScheme, Pressable, Modal, Alert } from "react-native";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
-import { Alert } from "react-native";
 import { authClient } from "../../lib/auth-client";
 import { contactsApi } from "../../api/contact";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import Toast from "react-native-toast-message";
 
 export default function ContactsScreen() {
   const colorScheme = useColorScheme();
@@ -24,6 +24,9 @@ export default function ContactsScreen() {
   const [activeTab, setActiveTab] = useState<"clients" | "vendors">("clients");
 
   const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<{id: string, type: "client" | "vendor"} | null>(null);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactName, setContactName] = useState("");
   const [contactAddress, setContactAddress] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -53,37 +56,100 @@ export default function ContactsScreen() {
     setRefreshing(false);
   };
 
-  const handleCreateContact = async () => {
+  const openEditModal = (contact: any, type: "client" | "vendor") => {
+    setContactType(type);
+    setEditingContactId(contact.id);
+    setContactName(contact.name || "");
+    setContactAddress(contact.address || "");
+    setContactPhone(contact.phone || "");
+    setContactEmail(contact.email || "");
+    setContactVendorType(contact.vendorType || "");
+    setContactModalVisible(true);
+  };
+
+  const handleSaveContact = async () => {
     if (!contactName.trim() || !session?.user?.id) return;
     setCreating(true);
     try {
-      if (contactType === "client") {
-        await contactsApi.createClient({ 
-          contractor_id: session.user.id, 
-          name: contactName,
-          address: contactAddress,
-          phone: contactPhone,
-          email: contactEmail,
-        });
+      if (editingContactId) {
+        if (contactType === "client") {
+          await contactsApi.updateClient({
+            id: editingContactId,
+            name: contactName,
+            address: contactAddress,
+            phone: contactPhone,
+            email: contactEmail,
+          });
+        } else {
+          await contactsApi.updateVendor({
+            id: editingContactId,
+            name: contactName,
+            address: contactAddress,
+            vendor_type: contactVendorType,
+            phone: contactPhone,
+            email: contactEmail,
+          });
+        }
       } else {
-        await contactsApi.createVendor({ 
-          contractor_id: session.user.id, 
-          name: contactName,
-          address: contactAddress,
-          vendor_type: contactVendorType,
-          phone: contactPhone,
-          email: contactEmail,
-        });
+        if (contactType === "client") {
+          await contactsApi.createClient({ 
+            name: contactName,
+            address: contactAddress,
+            phone: contactPhone,
+            email: contactEmail,
+          });
+        } else {
+          await contactsApi.createVendor({ 
+            name: contactName,
+            address: contactAddress,
+            vendor_type: contactVendorType,
+            phone: contactPhone,
+            email: contactEmail,
+          });
+        }
       }
       setContactName("");
       setContactAddress("");
       setContactPhone("");
       setContactEmail("");
       setContactVendorType("");
+      setEditingContactId(null);
       setContactModalVisible(false);
       await fetchData();
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to create contact");
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: e.message || "Failed to save contact"
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDeleteContact = (id: string, type: "client" | "vendor") => {
+    setContactToDelete({ id, type });
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDeleteContact = async () => {
+    if (!contactToDelete) return;
+    setCreating(true); // Re-use creating state for loading indicator on delete button
+    try {
+      if (contactToDelete.type === "client") {
+        await contactsApi.deleteClient(contactToDelete.id);
+      } else {
+        await contactsApi.deleteVendor(contactToDelete.id);
+      }
+      await fetchData();
+      setDeleteModalVisible(false);
+      setContactToDelete(null);
+    } catch (e: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: e.message || "Failed to delete contact"
+      });
     } finally {
       setCreating(false);
     }
@@ -126,7 +192,16 @@ export default function ContactsScreen() {
           <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">
             {activeTab === "clients" ? "Your Clients" : "Your Vendors"}
           </Text>
-          <Pressable onPress={() => { setContactType(activeTab === "clients" ? "client" : "vendor"); setContactModalVisible(true); }} className="active:opacity-50">
+          <Pressable onPress={() => { 
+            setContactType(activeTab === "clients" ? "client" : "vendor"); 
+            setEditingContactId(null);
+            setContactName("");
+            setContactAddress("");
+            setContactPhone("");
+            setContactEmail("");
+            setContactVendorType("");
+            setContactModalVisible(true); 
+          }} className="active:opacity-50">
             <Ionicons name="add-circle" size={28} color="#3B82F6" />
           </Pressable>
         </View>
@@ -151,17 +226,27 @@ export default function ContactsScreen() {
                     <Text className="text-xs font-medium text-blue-500 mt-1 uppercase tracking-wide">{contact.vendorType}</Text>
                   )}
                 </View>
+                <View className="flex-row gap-2">
+                  <Pressable onPress={() => openEditModal(contact, activeTab === "clients" ? "client" : "vendor")} className="p-2 active:opacity-50">
+                    <Ionicons name="pencil" size={20} color="#64748b" />
+                  </Pressable>
+                  <Pressable onPress={() => handleDeleteContact(contact.id, activeTab === "clients" ? "client" : "vendor")} className="p-2 active:opacity-50">
+                    <Ionicons name="trash" size={20} color="#ef4444" />
+                  </Pressable>
+                </View>
               </View>
             </Card>
           ))
         )}
       </ScrollView>
 
-      {/* Create Contact Modal */}
+      {/* Create/Edit Contact Modal */}
       <Modal visible={contactModalVisible} animationType="slide" transparent>
         <View className="flex-1 bg-black/50 justify-center p-5">
           <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
-            <Text className="text-xl font-bold mb-5 text-slate-900 dark:text-slate-50">New {contactType === "client" ? "Client" : "Vendor"}</Text>
+            <Text className="text-xl font-bold mb-5 text-slate-900 dark:text-slate-50">
+              {editingContactId ? "Edit" : "New"} {contactType === "client" ? "Client" : "Vendor"}
+            </Text>
             <Input 
               label="Name" 
               placeholder="e.g. Acme Corp" 
@@ -199,7 +284,42 @@ export default function ContactsScreen() {
             )}
             <View className="flex-row mt-6 gap-3">
               <Button title="Cancel" variant="outline" onPress={() => setContactModalVisible(false)} className="flex-1" />
-              <Button title="Create" onPress={handleCreateContact} loading={creating} className="flex-1" />
+              <Button title={editingContactId ? "Save Changes" : "Create"} onPress={handleSaveContact} loading={creating} className="flex-1" />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal visible={deleteModalVisible} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center p-5">
+          <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
+            <View className="items-center mb-4">
+              <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">
+                <Ionicons name="warning" size={32} color="#ef4444" />
+              </View>
+              <Text className="text-xl font-bold text-center text-slate-900 dark:text-slate-50">Delete Contact?</Text>
+              <Text className="text-base text-center mt-2 text-slate-500 dark:text-slate-400">
+                Are you sure you want to delete this contact? This action cannot be undone.
+              </Text>
+            </View>
+            <View className="flex-row mt-4 gap-3">
+              <Button 
+                title="Cancel" 
+                variant="outline" 
+                onPress={() => setDeleteModalVisible(false)} 
+                className="flex-1" 
+                disabled={creating}
+              />
+              <Pressable 
+                className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
+                onPress={confirmDeleteContact}
+                disabled={creating}
+              >
+                <Text className="text-[15px] font-semibold text-white">
+                  {creating ? "Deleting..." : "Delete"}
+                </Text>
+              </Pressable>
             </View>
           </View>
         </View>

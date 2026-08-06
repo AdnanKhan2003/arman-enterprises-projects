@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
   useColorScheme
 } from "react-native";
 import { Text } from "../components/ui/Text";
@@ -16,6 +15,7 @@ import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { Link } from "expo-router";
 import { authClient } from "../lib/auth-client";
 import { LoginSchema } from "../api/auth";
+import Toast from "react-native-toast-message";
 
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
@@ -47,7 +47,11 @@ export default function SignInScreen() {
     setLoading(false);
 
     if (error) {
-      Alert.alert("Login Failed", error.message || "Invalid credentials.");
+      Toast.show({
+        type: 'error',
+        text1: 'Login Failed',
+        text2: error.message || "Invalid credentials."
+      });
     } 
     // If successful, our Global Layout Guard (_layout.tsx) will automatically redirect!
   };
