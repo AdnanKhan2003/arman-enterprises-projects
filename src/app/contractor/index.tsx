@@ -118,9 +118,9 @@ export default function ContractorDashboard() {
         )}
 
         <View className="flex-row justify-between items-center mb-3 mt-8">
-          <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">Business Directory</Text>
+          <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">Business Management</Text>
         </View>
-        <Card>
+        <Card className="mb-4">
           <View className="flex-row items-center gap-3 mb-4">
             <View className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-full items-center justify-center">
               <Ionicons name="book" size={24} color="#6366F1" />
@@ -131,6 +131,19 @@ export default function ContractorDashboard() {
             </View>
           </View>
           <Button title="Manage Contacts" variant="outline" onPress={() => router.push("/contractor/contacts" as any)} />
+        </Card>
+
+        <Card>
+          <View className="flex-row items-center gap-3 mb-4">
+            <View className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-full items-center justify-center">
+              <Ionicons name="construct" size={24} color="#F59E0B" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Laborers</Text>
+              <Text className="text-sm text-slate-500 dark:text-slate-400">Create login credentials for your workforce</Text>
+            </View>
+          </View>
+          <Button title="Manage Laborers" variant="outline" onPress={() => router.push("/contractor/laborers" as any)} />
         </Card>
       </ScrollView>
 
