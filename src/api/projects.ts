@@ -7,6 +7,7 @@ export const CreateProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   location: z.string().optional(),
   description: z.string().optional(),
+  laborer_ids: z.array(z.string()).optional(),
 });
 
 export const AssignLaborerSchema = z.object({
@@ -48,6 +49,7 @@ export const projectsApi = {
     name: string;
     location?: string;
     description?: string;
+    laborer_ids?: string[];
   }) {
     try {
       const parsed = CreateProjectSchema.safeParse(projectData);
@@ -61,6 +63,7 @@ export const projectsApi = {
           name: parsed.data.name,
           location: parsed.data.location,
           description: parsed.data.description,
+          laborer_ids: parsed.data.laborer_ids,
         })
       });
       
@@ -84,6 +87,35 @@ export const projectsApi = {
       });
       
       return { data: json.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
+  /**
+   * Update a project's details
+   */
+  async updateProject(id: string, data: { name?: string; location?: string; description?: string; client_id?: string; laborer_ids?: string[] }) {
+    try {
+      const json = await apiFetch('/api/projects', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, ...data })
+      });
+      return { data: json.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
+  /**
+   * Delete a project and all its associated records
+   */
+  async deleteProject(id: string) {
+    try {
+      const json = await apiFetch(`/api/projects?id=${id}`, {
+        method: 'DELETE',
+      });
+      return { data: json, error: null };
     } catch (error) {
       return { data: null, error };
     }

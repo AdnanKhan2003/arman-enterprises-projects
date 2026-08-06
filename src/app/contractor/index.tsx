@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, RefreshControl, useColorScheme, Pressable, Modal } from "react-native";
+import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
-import { Input } from "../../components/ui/Input";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
-import Toast from "react-native-toast-message";
 import { authApi } from "../../api/auth";
 import { authClient } from "../../lib/auth-client";
 import { projectsApi } from "../../api/projects";
@@ -21,12 +19,6 @@ export default function ContractorDashboard() {
   const [projects, setProjects] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
-
-  const [projectModalVisible, setProjectModalVisible] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [projectLocation, setProjectLocation] = useState("");
-
-  const [creating, setCreating] = useState(false);
 
   const fetchData = async () => {
     if (!session?.user?.id) return;
@@ -47,30 +39,6 @@ export default function ContractorDashboard() {
     setRefreshing(true);
     await fetchData();
     setRefreshing(false);
-  };
-
-  const handleCreateProject = async () => {
-    if (!projectName.trim() || !session?.user?.id) return;
-    setCreating(true);
-    try {
-      await projectsApi.createProject({
-        contractor_id: session.user.id,
-        name: projectName,
-        location: projectLocation,
-      });
-      setProjectName("");
-      setProjectLocation("");
-      setProjectModalVisible(false);
-      await fetchData();
-    } catch (e: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: e.message || "Failed to create project"
-      });
-    } finally {
-      setCreating(false);
-    }
   };
 
   return (
@@ -97,8 +65,8 @@ export default function ContractorDashboard() {
         {/* Projects Section */}
         <View className="flex-row justify-between items-center mb-3">
           <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">Active Projects</Text>
-          <Pressable onPress={() => setProjectModalVisible(true)} className="active:opacity-50">
-            <Ionicons name="add-circle" size={28} color="#3B82F6" />
+          <Pressable onPress={() => router.push("/contractor/projects" as any)} className="active:opacity-50">
+            <Text className="text-blue-500 font-medium">View All</Text>
           </Pressable>
         </View>
         
@@ -120,6 +88,19 @@ export default function ContractorDashboard() {
         <View className="flex-row justify-between items-center mb-3 mt-8">
           <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">Business Management</Text>
         </View>
+
+        <Card className="mb-4">
+          <View className="flex-row items-center gap-3 mb-4">
+            <View className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center">
+              <Ionicons name="business" size={24} color="#3B82F6" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Projects</Text>
+              <Text className="text-sm text-slate-500 dark:text-slate-400">Manage, edit, and assign laborers to projects</Text>
+            </View>
+          </View>
+          <Button title="Manage Projects" variant="outline" onPress={() => router.push("/contractor/projects" as any)} />
+        </Card>
         <Card className="mb-4">
           <View className="flex-row items-center gap-3 mb-4">
             <View className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-full items-center justify-center">
@@ -146,34 +127,6 @@ export default function ContractorDashboard() {
           <Button title="Manage Laborers" variant="outline" onPress={() => router.push("/contractor/laborers" as any)} />
         </Card>
       </ScrollView>
-
-      {/* Create Project Modal */}
-      <Modal visible={projectModalVisible} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-center p-5">
-          <View className="rounded-2xl p-6 shadow-lg bg-white dark:bg-slate-800">
-            <Text className="text-xl font-bold mb-5 text-slate-900 dark:text-slate-50">New Project</Text>
-            <Input 
-              label="Project Name" 
-              placeholder="e.g. Downtown Highrise" 
-              value={projectName} 
-              onChangeText={setProjectName} 
-            />
-            <Input 
-              label="Location" 
-              placeholder="e.g. 123 Main St, NY" 
-              value={projectLocation} 
-              onChangeText={setProjectLocation} 
-            />
-            <View className="flex-row mt-6 gap-3">
-              <Button title="Cancel" variant="outline" onPress={() => setProjectModalVisible(false)} className="flex-1" />
-              <Button title="Create" onPress={handleCreateProject} loading={creating} className="flex-1" />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Create Contact Modal Removed */}
-
     </Screen>
   );
 }
