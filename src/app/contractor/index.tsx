@@ -114,6 +114,19 @@ export default function ContractorDashboard() {
           <Button title="Manage Contacts" variant="outline" onPress={() => router.push("/contractor/contacts" as any)} />
         </Card>
 
+        <Card className="mb-4">
+          <View className="flex-row items-center gap-3 mb-4">
+            <View className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-full items-center justify-center">
+              <Ionicons name="time" size={24} color="#10B981" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Timesheet Approvals</Text>
+              <Text className="text-sm text-slate-500 dark:text-slate-400">Review and approve laborer attendance logs</Text>
+            </View>
+          </View>
+          <Button title="Review Timesheets" variant="outline" onPress={() => router.push("/contractor/timesheets" as any)} />
+        </Card>
+
         <Card>
           <View className="flex-row items-center gap-3 mb-4">
             <View className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-full items-center justify-center">

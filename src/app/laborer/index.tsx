@@ -31,7 +31,6 @@ export default function LaborerDashboard() {
       ]);
       
       if (projectsRes.data) {
-        // Map the structure since it returns { projects: { id, name, client } }
         setProjects(projectsRes.data.map((r: any) => r.projects));
       }
       if (attendanceRes.data) setAttendance(attendanceRes.data);
@@ -50,7 +49,7 @@ export default function LaborerDashboard() {
     setRefreshing(false);
   };
 
-  const handleCheckIn = async (projectId: string) => {
+  const handleClockAction = async (projectId: string, action: "check_in" | "check_out") => {
     if (!session?.user?.id) return;
     setLoadingProjectId(projectId);
     
@@ -59,20 +58,20 @@ export default function LaborerDashboard() {
     const res = await attendanceApi.markAttendance({
       project_id: projectId,
       work_date: today,
-      status: "Present"
+      action
     });
     
     if (res.error) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Could not mark attendance.'
+        text2: `Could not ${action === "check_in" ? "clock in" : "clock out"}.`
       });
     } else {
       Toast.show({
         type: 'success',
         text1: 'Success',
-        text2: 'Attendance marked for today!'
+        text2: `Successfully ${action === "check_in" ? "clocked in" : "clocked out"}!`
       });
       await fetchData();
     }
@@ -110,18 +109,47 @@ export default function LaborerDashboard() {
           <Text className="text-sm italic mt-2 mb-4 text-slate-500 dark:text-slate-400">You are not assigned to any projects.</Text>
         ) : (
           projects.map(p => (
-            <Card key={p.id}>
+            <Card key={p.id} className="mb-4">
               <View className="flex-row justify-between items-center">
-                <View>
+                <View className="flex-1 mr-4">
                   <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">{p.name}</Text>
-                  {p.client && <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">Client: {p.client.name}</Text>}
+                  {p.location ? <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">{p.location}</Text> : null}
                 </View>
-                <Button 
-                  title="Check In" 
-                  onPress={() => handleCheckIn(p.id)} 
-                  loading={loadingProjectId === p.id} 
-                  className="py-2 px-4" 
-                />
+                
+                {(() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  const todayRecord = attendance.find(a => a.projectId === p.id && a.workDate === today);
+                  
+                  if (!todayRecord) {
+                    return (
+                      <Button 
+                        title="Clock In" 
+                        onPress={() => handleClockAction(p.id, "check_in")} 
+                        loading={loadingProjectId === p.id} 
+                        className="py-2 px-4" 
+                      />
+                    );
+                  } else if (todayRecord && !todayRecord.checkOutTime) {
+                    return (
+                      <View className="items-end gap-1">
+                        <Text className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">✓ CLOCKED IN</Text>
+                        <Button 
+                          title="Clock Out" 
+                          variant="outline"
+                          onPress={() => handleClockAction(p.id, "check_out")} 
+                          loading={loadingProjectId === p.id} 
+                          className="py-1 px-3 border-emerald-500" 
+                        />
+                      </View>
+                    );
+                  } else {
+                    return (
+                      <View className="items-center px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                        <Text className="text-xs font-bold text-slate-500 dark:text-slate-400">Shift Completed</Text>
+                      </View>
+                    );
+                  }
+                })()}
               </View>
             </Card>
           ))
@@ -136,14 +164,22 @@ export default function LaborerDashboard() {
           <Text className="text-sm italic mt-2 mb-4 text-slate-500 dark:text-slate-400">No recent attendance history.</Text>
         ) : (
           attendance.map(a => (
-            <Card key={a.id}>
+            <Card key={a.id} className="mb-3">
               <View className="flex-row justify-between items-center">
                 <View>
                   <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">{a.project?.name || "Unknown Project"}</Text>
-                  <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">{new Date(a.workDate).toDateString()}</Text>
+                  <Text className="text-sm mt-0.5 text-slate-500 dark:text-slate-400">{new Date(a.workDate).toDateString()}</Text>
+                  {a.checkInTime && (
+                    <Text className="text-xs mt-1 text-slate-400 dark:text-slate-500 font-medium">
+                      In: {new Date(a.checkInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} 
+                      {a.checkOutTime ? ` | Out: ${new Date(a.checkOutTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : ''}
+                    </Text>
+                  )}
                 </View>
-                <View className={`px-2.5 py-1 rounded-full ${a.approvalStatus === "Approved" ? "bg-emerald-500" : a.approvalStatus === "Pending" ? "bg-amber-500" : "bg-red-500"}`}>
-                  <Text className="text-white text-xs font-semibold">{a.approvalStatus}</Text>
+                <View className={`px-2.5 py-1 rounded-full ${a.approvalStatus === "Approved" ? "bg-emerald-100 dark:bg-emerald-900/30" : a.approvalStatus === "Pending" ? "bg-amber-100 dark:bg-amber-900/30" : "bg-red-100 dark:bg-red-900/30"}`}>
+                  <Text className={`text-xs font-semibold ${a.approvalStatus === "Approved" ? "text-emerald-700 dark:text-emerald-400" : a.approvalStatus === "Pending" ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"}`}>
+                    {a.approvalStatus}
+                  </Text>
                 </View>
               </View>
             </Card>
@@ -153,5 +189,3 @@ export default function LaborerDashboard() {
     </Screen>
   );
 }
-
-

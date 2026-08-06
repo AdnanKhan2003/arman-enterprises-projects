@@ -15,25 +15,27 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId");
 
   if (role === "contractor") {
-    if (!projectId) return new Response("Missing projectId", { status: 400 });
-    
-    // Fetch pending attendance for a specific project
+    // Fetch pending attendance for all projects owned by this contractor
     const rows = await db.select({
       record: attendance,
-      laborer: users
+      laborer: users,
+      project: projects
     })
     .from(attendance)
     .innerJoin(users, eq(attendance.laborerId, users.id))
+    .innerJoin(projects, eq(attendance.projectId, projects.id))
     .where(
       and(
-        eq(attendance.projectId, projectId),
+        eq(projects.contractorId, userId),
         eq(attendance.approvalStatus, "Pending")
       )
-    );
+    )
+    .orderBy(desc(attendance.workDate));
     
     const formatted = rows.map((r: any) => ({
       ...r.record,
-      laborer: { name: r.laborer.name, phone: r.laborer.phone }
+      laborer: { name: r.laborer.name, phone: r.laborer.phone },
+      project: { name: r.project.name }
     }));
     
     return Response.json({ data: formatted });
@@ -69,17 +71,55 @@ export async function POST(request: Request) {
   const parsed = MarkAttendanceSchema.safeParse(body);
   if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
   
-  const { project_id, laborer_id, work_date, status } = parsed.data;
+  const { project_id, work_date, action } = parsed.data;
   
-  const newRecord = await db.insert(attendance).values({ 
-    projectId: project_id,
-    workDate: work_date,
-    status: status,
-    laborerId: session.user.id,
-    approvalStatus: "Pending"
-  }).returning();
-  
-  return Response.json({ data: newRecord[0] });
+  if (action === "check_in") {
+    // Check if they already checked in today
+    const existing = await db.select().from(attendance).where(
+      and(
+        eq(attendance.laborerId, session.user.id),
+        eq(attendance.projectId, project_id),
+        eq(attendance.workDate, work_date)
+      )
+    ).limit(1);
+
+    if (existing.length > 0) {
+      return new Response("Already checked in today", { status: 400 });
+    }
+
+    const newRecord = await db.insert(attendance).values({ 
+      projectId: project_id,
+      workDate: work_date,
+      status: "Present",
+      checkInTime: new Date(),
+      laborerId: session.user.id,
+      approvalStatus: "Pending"
+    }).returning();
+    
+    return Response.json({ data: newRecord[0] });
+  } else if (action === "check_out") {
+    // Find the record for today
+    const existing = await db.select().from(attendance).where(
+      and(
+        eq(attendance.laborerId, session.user.id),
+        eq(attendance.projectId, project_id),
+        eq(attendance.workDate, work_date)
+      )
+    ).limit(1);
+
+    if (existing.length === 0) {
+      return new Response("No check-in found for today", { status: 404 });
+    }
+
+    const updatedRecord = await db.update(attendance)
+      .set({ checkOutTime: new Date() })
+      .where(eq(attendance.id, existing[0].id))
+      .returning();
+
+    return Response.json({ data: updatedRecord[0] });
+  }
+
+  return new Response("Invalid action", { status: 400 });
 }
 
 export async function PATCH(request: Request) {

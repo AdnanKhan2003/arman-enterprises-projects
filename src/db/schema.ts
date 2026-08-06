@@ -142,6 +142,8 @@ export const attendance = pgTable("attendance", {
     .references(() => projects.id)
     .notNull(),
   workDate: date("work_date").notNull(),
+  checkInTime: timestamp("check_in_time"),
+  checkOutTime: timestamp("check_out_time"),
   status: attendanceStatusEnum("status").notNull(),
   approvalStatus: approvalStatusEnum("approval_status")
     .default("Pending")

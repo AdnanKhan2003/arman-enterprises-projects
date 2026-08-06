@@ -5,7 +5,7 @@ export const MarkAttendanceSchema = z.object({
   project_id: z.string(),
   laborer_id: z.string().optional(),
   work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format, expected YYYY-MM-DD"),
-  status: z.enum(["Present", "Absent", "Half-day"]),
+  action: z.enum(["check_in", "check_out"]),
 });
 
 export const ReviewAttendanceSchema = z.object({
@@ -22,7 +22,7 @@ export const attendanceApi = {
     project_id: string;
     laborer_id?: string;
     work_date: string; // Format: YYYY-MM-DD
-    status: "Present" | "Absent" | "Half-day";
+    action: "check_in" | "check_out";
   }) {
     try {
       const parsed = MarkAttendanceSchema.safeParse(data);
@@ -40,11 +40,11 @@ export const attendanceApi = {
   },
 
   /**
-   * Fetch all pending attendance for a specific project (Contractor action)
+   * Fetch all pending attendance for all projects (Contractor action)
    */
-  async getPendingAttendance(projectId: string) {
+  async getPendingAttendance() {
     try {
-      const json = await apiFetch(`/api/attendance?projectId=${projectId}`);
+      const json = await apiFetch(`/api/attendance`);
       return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };
