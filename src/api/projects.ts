@@ -2,16 +2,16 @@ import { z } from "zod";
 import { apiFetch } from "../lib/auth-client";
 
 export const CreateProjectSchema = z.object({
-  contractor_id: z.string().uuid("Invalid contractor ID").optional(),
-  client_id: z.string().uuid("Invalid client ID").optional(),
+  contractor_id: z.string().optional(),
+  client_id: z.string().optional(),
   name: z.string().min(1, "Project name is required"),
   location: z.string().optional(),
   description: z.string().optional(),
 });
 
 export const AssignLaborerSchema = z.object({
-  projectId: z.string().uuid("Invalid project ID"),
-  laborerId: z.string().uuid("Invalid laborer ID"),
+  projectId: z.string(),
+  laborerId: z.string(),
 });
 
 export const projectsApi = {

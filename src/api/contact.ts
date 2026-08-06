@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiFetch } from "../lib/auth-client";
 
 export const CreateContactSchema = z.object({
-  contractor_id: z.string().uuid("Invalid contractor ID").optional(),
+  contractor_id: z.string().optional(),
   name: z.string().min(1, "Name is required"),
   address: z.string().optional(),
   vendor_type: z.string().optional(),

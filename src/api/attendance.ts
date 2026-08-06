@@ -2,15 +2,15 @@ import { z } from "zod";
 import { apiFetch } from "../lib/auth-client";
 
 export const MarkAttendanceSchema = z.object({
-  project_id: z.string().uuid("Invalid project ID"),
-  laborer_id: z.string().uuid("Invalid laborer ID").optional(),
+  project_id: z.string(),
+  laborer_id: z.string().optional(),
   work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format, expected YYYY-MM-DD"),
   status: z.enum(["Present", "Absent", "Half-day"]),
 });
 
 export const ReviewAttendanceSchema = z.object({
-  attendanceId: z.string().uuid("Invalid attendance ID"),
-  contractorId: z.string().uuid("Invalid contractor ID").optional(),
+  attendanceId: z.string(),
+  contractorId: z.string().optional(),
   status: z.enum(["Approved", "Rejected"]),
 });
 

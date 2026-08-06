@@ -32,7 +32,7 @@ export async function apiFetch(path: string, options?: RequestInit) {
     credentials: "omit",
     headers: {
       "Content-Type": "application/json",
-      Cookie: await (authClient as any).getCookie() || "",
+      Cookie: (await (authClient as any).getCookie()) || "",
       ...options?.headers,
     },
   });

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Text } from "../components/ui/Text";
 import { Screen } from "../components/ui/Screen";
+import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { Link } from "expo-router";
 import { authClient } from "../lib/auth-client";
 import { LoginSchema } from "../api/auth";
@@ -56,11 +57,14 @@ export default function SignInScreen() {
 
   return (
     <Screen>
+      <View className="items-end px-5 pt-4 z-10">
+        <ThemeToggle />
+      </View>
       <KeyboardAvoidingView
         className="flex-1 justify-center px-6"
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <View className="bg-white dark:bg-slate-900 p-4">
+      <View className="p-4">
         <View className="mb-10">
           <Text className="text-3xl font-normal text-black dark:text-white mb-2">SiteLedger</Text>
           <Text className="text-sm font-normal text-slate-500 dark:text-slate-400">Welcome back. Sign in to your account.</Text>
@@ -70,7 +74,7 @@ export default function SignInScreen() {
           <View className="gap-2">
             <Text className="text-[13px] font-medium text-black dark:text-white">Email Address</Text>
             <TextInput
-              className={`bg-white dark:bg-slate-800 border ${errors.email ? 'border-black dark:border-white' : 'border-slate-200 dark:border-slate-700'} p-4 text-[15px] text-black dark:text-white`}
+              className={`bg-white dark:bg-slate-800 border ${errors.email ? 'border-red-500 dark:border-red-500' : 'border-slate-200 dark:border-slate-700'} p-4 text-[15px] text-black dark:text-white rounded-lg`}
               placeholder="name@company.com"
               placeholderTextColor={isDark ? "#94A3B8" : "#64748B"}
               keyboardType="email-address"
@@ -78,14 +82,14 @@ export default function SignInScreen() {
               value={email}
               onChangeText={(t) => { setEmail(t); setErrors((p) => ({ ...p, email: undefined })) }}
             />
-            {errors.email && <Text className="text-black dark:text-white text-xs">{errors.email}</Text>}
+            {errors.email && <Text className="text-red-500 text-xs">{errors.email}</Text>}
           </View>
 
           <View className="gap-2">
             <Text className="text-[13px] font-medium text-black dark:text-white">Password</Text>
             <View className="relative justify-center">
               <TextInput
-                className={`bg-white dark:bg-slate-800 border ${errors.password ? 'border-black dark:border-white' : 'border-slate-200 dark:border-slate-700'} p-4 pr-12 text-[15px] text-black dark:text-white`}
+                className={`bg-white dark:bg-slate-800 border ${errors.password ? 'border-red-500 dark:border-red-500' : 'border-slate-200 dark:border-slate-700'} p-4 pr-12 text-[15px] text-black dark:text-white rounded-lg`}
                 placeholder="••••••••"
                 placeholderTextColor={isDark ? "#94A3B8" : "#64748B"}
                 secureTextEntry={!showPassword}
@@ -99,11 +103,11 @@ export default function SignInScreen() {
                 <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={isDark ? "#94A3B8" : "#64748B"} />
               </Pressable>
             </View>
-            {errors.password && <Text className="text-black dark:text-white text-xs">{errors.password}</Text>}
+            {errors.password && <Text className="text-red-500 text-xs mt-1">{errors.password}</Text>}
           </View>
 
           <Pressable 
-            className="bg-black dark:bg-white p-4 items-center justify-center mt-4 active:opacity-70" 
+            className="bg-black dark:bg-white rounded-lg p-4 items-center justify-center mt-4 active:opacity-70" 
             onPress={handleSignIn}
             disabled={loading}
           >

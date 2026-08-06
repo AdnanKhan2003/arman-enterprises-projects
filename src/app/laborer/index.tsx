@@ -4,6 +4,7 @@ import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { ThemeToggle } from "../../components/ui/ThemeToggle";
 import { authApi } from "../../api/auth";
 import { authClient } from "../../lib/auth-client";
 import { projectsApi } from "../../api/projects";
@@ -79,9 +80,12 @@ export default function LaborerDashboard() {
             Welcome, {session?.user?.name || "Worker"}
           </Text>
         </View>
-        <Pressable onPress={() => authApi.logout()} className="p-2 active:opacity-50">
-          <Ionicons name="log-out-outline" size={24} color={isDark ? "#F8FAFC" : "#0F172A"} />
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <ThemeToggle />
+          <Pressable onPress={() => authApi.logout()} className="p-2 active:opacity-50">
+            <Ionicons name="log-out-outline" size={24} color={isDark ? "#F8FAFC" : "#0F172A"} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView 

@@ -7,7 +7,7 @@ export function Screen({ children, style, className, ...props }: ViewProps & { c
   
   return (
     <View 
-      className={`flex-1 bg-background ${className || ""}`}
+      className={`flex-1 bg-white dark:bg-slate-900 ${className || ""}`}
       style={[
         { paddingTop: insets.top, paddingBottom: insets.bottom },
         style
