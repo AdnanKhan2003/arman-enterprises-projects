@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   date,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -178,3 +179,33 @@ export const payments = pgTable(
     description: text("description"),
   }
 );
+
+// Ledger invoices: a saved invoice document the contractor builds in the
+// template. Line items are stored inline as JSON.
+export const ledgerInvoiceScopeEnum = pgEnum("ledger_invoice_scope", [
+  "Income",
+  "Expense",
+  "Both",
+]);
+export const ledgerInvoiceFormatEnum = pgEnum("ledger_invoice_format", ["pdf", "excel"]);
+
+export type LedgerInvoiceItem = {
+  type: "Income" | "Expense";
+  date: string;
+  entity: string;
+  description: string;
+  amount: string;
+};
+
+export const ledgerInvoices = pgTable("ledger_invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contractorId: text("contractor_id")
+    .references(() => users.id)
+    .notNull(),
+  title: text("title"),
+  scope: ledgerInvoiceScopeEnum("scope").notNull(),
+  format: ledgerInvoiceFormatEnum("format").notNull(),
+  items: jsonb("items").$type<LedgerInvoiceItem[]>().notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

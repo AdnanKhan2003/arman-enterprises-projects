@@ -1,12 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import {
-  StorageAccessFramework,
-  readAsStringAsync,
-  writeAsStringAsync,
-  documentDirectory,
-} from 'expo-file-system/legacy';
-import { Platform, Alert } from 'react-native';
+import { File, Paths } from 'expo-file-system';
 
 type Invoice = {
   id: string;
@@ -37,7 +31,7 @@ function periodOf(invoices: Invoice[]) {
   return { from: new Date(times[0]), to: new Date(times[times.length - 1]) };
 }
 
-function statementNumber(generatedAt: Date) {
+function invoiceNumber(generatedAt: Date) {
   const y = generatedAt.getFullYear();
   const seq = Math.floor((generatedAt.getTime() / 1000) % 100000)
     .toString()
@@ -128,11 +122,11 @@ export async function exportLedgerToPDF(invoices: Invoice[], contractorName: str
             <div class="logo">S</div>
             <div>
               <div class="brand-name">SiteLedger</div>
-              <div class="brand-sub">Financial ledger statement</div>
+              <div class="brand-sub">Invoice</div>
             </div>
           </div>
           <div class="meta">
-            <div><strong>Statement ${statementNumber(generatedAt)}</strong></div>
+            <div><strong>Invoice ${invoiceNumber(generatedAt)}</strong></div>
             <div>Issued ${shortDate(generatedAt.toISOString())}</div>
             <div>Period: ${periodLabel}</div>
           </div>
@@ -198,25 +192,16 @@ export async function exportLedgerToPDF(invoices: Invoice[], contractorName: str
   try {
     const { uri } = await Print.printToFileAsync({ html });
 
-    if (Platform.OS === 'android') {
-      const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (permissions.granted) {
-        const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
-        const fileUri = await StorageAccessFramework.createFileAsync(
-          permissions.directoryUri,
-          `SiteLedger_Statement_${Date.now()}`,
-          'application/pdf',
-        );
-        await StorageAccessFramework.writeAsStringAsync(fileUri, base64, { encoding: 'base64' });
-        Alert.alert('Success', 'PDF saved successfully!');
-      }
-    } else {
-      await Sharing.shareAsync(uri, {
-        UTI: 'com.adobe.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: 'Save ledger statement',
-      });
-    }
+    // Copy the printed file to a friendly name, then share (Files/Drive/etc.).
+    const dest = new File(Paths.cache, `SiteLedger_Invoice_${Date.now()}.pdf`);
+    if (dest.exists) dest.delete();
+    new File(uri).copy(dest);
+
+    await Sharing.shareAsync(dest.uri, {
+      UTI: 'com.adobe.pdf',
+      mimeType: 'application/pdf',
+      dialogTitle: 'Save invoice',
+    });
   } catch (error) {
     console.error('Error generating PDF', error);
     throw error;
@@ -259,7 +244,7 @@ export async function exportLedgerToExcel(invoices: Invoice[], contractorName: s
     const wb = XLSX.utils.book_new();
 
     // ---- Sheet 1: Transactions ----
-    const titleText = `${contractorName} — Financial Ledger  (${periodLabel})`;
+    const titleText = `${contractorName} — Invoice  (${periodLabel})`;
     const dataAoa = invoices.map((inv) => [
       shortDate(inv.issueDate),
       inv.type,
@@ -375,29 +360,17 @@ export async function exportLedgerToExcel(invoices: Invoice[], contractorName: s
     XLSX.utils.book_append_sheet(wb, projWs, 'By project');
 
     // ---- Write & save ----
-    const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-    const fileName = `SiteLedger_Ledger_${Date.now()}`;
+    const arrayBuffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    const file = new File(Paths.cache, `SiteLedger_Invoice_${Date.now()}.xlsx`);
+    if (file.exists) file.delete();
+    file.create();
+    file.write(new Uint8Array(arrayBuffer));
 
-    if (Platform.OS === 'android') {
-      const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (permissions.granted) {
-        const fileUri = await StorageAccessFramework.createFileAsync(
-          permissions.directoryUri,
-          fileName,
-          XLSX_MIME,
-        );
-        await StorageAccessFramework.writeAsStringAsync(fileUri, base64, { encoding: 'base64' });
-        Alert.alert('Success', 'Excel workbook saved successfully!');
-      }
-    } else {
-      const fileUri = `${documentDirectory}${fileName}.xlsx`;
-      await writeAsStringAsync(fileUri, base64, { encoding: 'base64' });
-      await Sharing.shareAsync(fileUri, {
-        mimeType: XLSX_MIME,
-        UTI: 'org.openxmlformats.spreadsheetml.sheet',
-        dialogTitle: 'Save ledger workbook',
-      });
-    }
+    await Sharing.shareAsync(file.uri, {
+      mimeType: XLSX_MIME,
+      UTI: 'org.openxmlformats.spreadsheetml.sheet',
+      dialogTitle: 'Save invoice',
+    });
   } catch (error) {
     console.error('Error generating Excel', error);
     throw error;
