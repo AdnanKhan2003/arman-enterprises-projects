@@ -91,44 +91,6 @@ export default function ContractorDashboard() {
 
         <Card className="mb-4">
           <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center">
-              <Ionicons name="business" size={24} color="#3B82F6" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Projects</Text>
-              <Text className="text-sm text-slate-500 dark:text-slate-400">Manage, edit, and assign laborers to projects</Text>
-            </View>
-          </View>
-          <Button title="Manage Projects" variant="outline" onPress={() => router.push("/contractor/projects" as any)} />
-        </Card>
-        <Card className="mb-4">
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-full items-center justify-center">
-              <Ionicons name="book" size={24} color="#6366F1" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Clients & Vendors</Text>
-              <Text className="text-sm text-slate-500 dark:text-slate-400">Manage your contacts address book</Text>
-            </View>
-          </View>
-          <Button title="Manage Contacts" variant="outline" onPress={() => router.push("/contractor/contacts" as any)} />
-        </Card>
-
-        <Card className="mb-4">
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-full items-center justify-center">
-              <Ionicons name="time" size={24} color="#10B981" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Timesheet Approvals</Text>
-              <Text className="text-sm text-slate-500 dark:text-slate-400">Review and approve laborer attendance logs</Text>
-            </View>
-          </View>
-          <Button title="Review Timesheets" variant="outline" onPress={() => router.push("/contractor/timesheets" as any)} />
-        </Card>
-
-        <Card className="mb-4">
-          <View className="flex-row items-center gap-3 mb-4">
             <View className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-full items-center justify-center">
               <Ionicons name="construct" size={24} color="#F59E0B" />
             </View>
@@ -140,30 +102,17 @@ export default function ContractorDashboard() {
           <Button title="Manage Laborers" variant="outline" onPress={() => router.push("/contractor/laborers" as any)} />
         </Card>
 
-        <Card className="mb-4">
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-teal-100 dark:bg-teal-900/50 rounded-full items-center justify-center">
-              <Ionicons name="cash" size={24} color="#14B8A6" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Payments</Text>
-              <Text className="text-sm text-slate-500 dark:text-slate-400">Track money paid and received with laborers, clients, and vendors</Text>
-            </View>
-          </View>
-          <Button title="Manage Payments" variant="outline" onPress={() => router.push("/contractor/payments" as any)} />
-        </Card>
-
         <Card>
           <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full items-center justify-center">
-              <Ionicons name="wallet" size={24} color="#A855F7" />
+            <View className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-full items-center justify-center">
+              <Ionicons name="book" size={24} color="#6366F1" />
             </View>
             <View className="flex-1">
-              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Financial Ledger</Text>
-              <Text className="text-sm text-slate-500 dark:text-slate-400">Track income and expenses with PDF/Excel exports</Text>
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Clients & Vendors</Text>
+              <Text className="text-sm text-slate-500 dark:text-slate-400">Manage your contacts address book</Text>
             </View>
           </View>
-          <Button title="View Ledger" variant="outline" onPress={() => router.push("/contractor/ledger" as any)} />
+          <Button title="Manage Contacts" variant="outline" onPress={() => router.push("/contractor/contacts" as any)} />
         </Card>
       </ScrollView>
     </Screen>

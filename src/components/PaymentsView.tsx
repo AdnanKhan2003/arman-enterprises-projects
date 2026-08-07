@@ -127,7 +127,7 @@ export function PaymentsView() {
 
   return (
     <Screen>
-      <PageHeader title="Payments" />
+      <PageHeader title="Payments" showBack={false} />
 
       <ScrollView
         contentContainerClassName="px-5 pb-10 mt-2"

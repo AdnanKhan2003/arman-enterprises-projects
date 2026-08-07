@@ -59,8 +59,8 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="sign-in" />
-            <Stack.Screen name="contractor/index" />
-            <Stack.Screen name="laborer/index" />
+            <Stack.Screen name="contractor" />
+            <Stack.Screen name="laborer" />
           </Stack>
         </SafeAreaProvider>
       </ThemeProvider>

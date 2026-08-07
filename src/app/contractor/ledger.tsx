@@ -136,7 +136,7 @@ export default function FinancialLedgerScreen() {
 
   return (
     <Screen>
-      <PageHeader title="Financial Ledger" />
+      <PageHeader title="Financial Ledger" showBack={false} />
 
       <ScrollView
         contentContainerClassName="px-5 pb-10 mt-2"

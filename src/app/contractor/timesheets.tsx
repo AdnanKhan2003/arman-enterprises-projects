@@ -65,7 +65,7 @@ export default function TimesheetsScreen() {
 
   return (
     <Screen>
-      <PageHeader title="Timesheets" />
+      <PageHeader title="Timesheets" showBack={false} />
 
       <View className="px-5 pb-2">
         <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">
