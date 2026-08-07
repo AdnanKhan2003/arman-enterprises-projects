@@ -10,6 +10,7 @@ import { authClient } from "../../lib/auth-client";
 import { projectsApi } from "../../api/projects";
 import { attendanceApi } from "../../api/attendance";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
 
 export default function LaborerDashboard() {
@@ -21,6 +22,7 @@ export default function LaborerDashboard() {
   const [attendance, setAttendance] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
+  const router = useRouter();
 
   const fetchData = async () => {
     if (!session?.user?.id) return;
@@ -100,6 +102,20 @@ export default function LaborerDashboard() {
         contentContainerClassName="px-5 pb-10"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
       >
+        {/* Payments Received */}
+        <Pressable onPress={() => router.push("/laborer/payments" as any)} className="active:opacity-80 mb-6">
+          <View className="flex-row items-center gap-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-4 rounded-xl">
+            <View className="w-11 h-11 bg-emerald-100 dark:bg-emerald-900/50 rounded-full items-center justify-center">
+              <Ionicons name="cash" size={22} color="#10B981" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Payments</Text>
+              <Text className="text-xs text-slate-500 dark:text-slate-400">Track money you received and paid</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+          </View>
+        </Pressable>
+
         {/* Assigned Projects */}
         <View className="flex-row justify-between items-center mb-3">
           <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">Assigned Projects</Text>

@@ -140,6 +140,19 @@ export default function ContractorDashboard() {
           <Button title="Manage Laborers" variant="outline" onPress={() => router.push("/contractor/laborers" as any)} />
         </Card>
 
+        <Card className="mb-4">
+          <View className="flex-row items-center gap-3 mb-4">
+            <View className="w-12 h-12 bg-teal-100 dark:bg-teal-900/50 rounded-full items-center justify-center">
+              <Ionicons name="cash" size={24} color="#14B8A6" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Payments</Text>
+              <Text className="text-sm text-slate-500 dark:text-slate-400">Track money paid and received with laborers, clients, and vendors</Text>
+            </View>
+          </View>
+          <Button title="Manage Payments" variant="outline" onPress={() => router.push("/contractor/payments" as any)} />
+        </Card>
+
         <Card>
           <View className="flex-row items-center gap-3 mb-4">
             <View className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full items-center justify-center">

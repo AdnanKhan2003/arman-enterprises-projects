@@ -164,21 +164,34 @@ export const invoices = pgTable("invoices", {
   issueDate: date("issue_date").notNull(),
 });
 
-export const payments = pgTable(
-  "payments",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    projectId: uuid("project_id")
-      .references(() => projects.id)
-      .notNull(),
-    laborerId: text("laborer_id").references(() => users.id),
-    vendorId: uuid("vendor_id").references(() => vendors.id),
-    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-    paymentDate: date("payment_date").notNull(),
-    proofUrl: text("proof_url"),
-    description: text("description"),
-  }
-);
+// Payments: actual cash movements (separate from ledger invoices). Each payment
+// is a directed transaction between two parties. A party is one of contractor,
+// laborer, client, or vendor; its id + display name are stored inline (id points
+// at users/clients/vendors depending on type — polymorphic, so no FK on it).
+export const paymentPartyTypeEnum = pgEnum("payment_party_type", [
+  "contractor",
+  "laborer",
+  "client",
+  "vendor",
+]);
+
+export const payments = pgTable("payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdById: text("created_by_id")
+    .references(() => users.id)
+    .notNull(),
+  fromType: paymentPartyTypeEnum("from_type").notNull(),
+  fromId: text("from_id").notNull(),
+  fromName: text("from_name").notNull(),
+  toType: paymentPartyTypeEnum("to_type").notNull(),
+  toId: text("to_id").notNull(),
+  toName: text("to_name").notNull(),
+  projectId: uuid("project_id").references(() => projects.id),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  paymentDate: date("payment_date").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // Ledger invoices: a saved invoice document the contractor builds in the
 // template. Line items are stored inline as JSON.

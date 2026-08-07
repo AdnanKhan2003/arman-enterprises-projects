@@ -1,8 +1,10 @@
 import { auth } from "../../lib/auth";
 import { db } from "../../db";
-import { payments, users, vendors, projects } from "../../db/schema";
-import { eq, desc } from "drizzle-orm";
+import { payments } from "../../db/schema";
+import { desc, or, eq } from "drizzle-orm";
 import { LogPaymentSchema } from "../../api/payments";
+
+type Role = "contractor" | "laborer";
 
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -10,68 +12,59 @@ export async function GET(request: Request) {
 
   const userId = session.user.id;
   const role = session.user.role;
-  
-  const url = new URL(request.url);
-  const projectId = url.searchParams.get("projectId");
 
-  if (role === "contractor") {
-    if (!projectId) return new Response("Missing projectId", { status: 400 });
-    
-    // Fetch payments for project
-    const rows = await db.select({
-      payment: payments,
-      laborer: users,
-      vendor: vendors
-    })
-    .from(payments)
-    .leftJoin(users, eq(payments.laborerId, users.id))
-    .leftJoin(vendors, eq(payments.vendorId, vendors.id))
-    .where(eq(payments.projectId, projectId))
-    .orderBy(desc(payments.paymentDate));
-    
-    const formatted = rows.map((r: any) => ({
-      ...r.payment,
-      laborer: r.laborer ? { name: r.laborer.name, phone: r.laborer.phone } : null,
-      vendor: r.vendor ? { name: r.vendor.name, phone: r.vendor.phone } : null,
-    }));
-    
-    return Response.json({ data: formatted });
-  } else {
-    // Laborer payments
-    const rows = await db.select({
-      payment: payments,
-      project: projects
-    })
-    .from(payments)
-    .innerJoin(projects, eq(payments.projectId, projects.id))
-    .where(eq(payments.laborerId, userId))
-    .orderBy(desc(payments.paymentDate));
-    
-    const formatted = rows.map((r: any) => ({
-      ...r.payment,
-      project: { name: r.project.name }
-    }));
-    
-    return Response.json({ data: formatted });
-  }
+  // Contractor is the admin: sees every payment (the client splits them into
+  // "mine" vs "others"). Laborers see only payments they're involved in.
+  const rows =
+    role === "contractor"
+      ? await db.select().from(payments).orderBy(desc(payments.paymentDate))
+      : await db
+          .select()
+          .from(payments)
+          .where(or(eq(payments.fromId, userId), eq(payments.toId, userId)))
+          .orderBy(desc(payments.paymentDate));
+
+  return Response.json({ data: rows });
 }
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return new Response("Unauthorized", { status: 401 });
 
-  if (session.user.role !== "contractor") {
-    return new Response("Forbidden", { status: 403 });
-  }
+  const role = (session.user.role as Role) || "contractor";
+  const self = {
+    type: role,
+    id: session.user.id,
+    name: session.user.name || (role === "contractor" ? "Contractor" : "Laborer"),
+  };
 
   const body = await request.json();
-  
-  // Actually, wait, the client is sending camelCase mapping inside src/api/payments.ts:
-  // projectId: parsed.data.project_id
-  // So we need to re-map it before validating, OR better yet, just validate the camelCase version or change the API client back.
-  // Wait, I am in control of the API route. Let's just insert the body blindly for this one to not break the frontend payload structure, OR we can define a server schema.
-  
-  const newRecord = await db.insert(payments).values(body).returning();
-  
-  return Response.json({ data: newRecord[0] });
+  const parsed = LogPaymentSchema.safeParse(body);
+  if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
+
+  const { direction, counterparty_type, counterparty_id, counterparty_name, amount, payment_date, description, project_id } =
+    parsed.data;
+
+  const counterparty = { type: counterparty_type, id: counterparty_id, name: counterparty_name };
+  const from = direction === "paid" ? self : counterparty;
+  const to = direction === "paid" ? counterparty : self;
+
+  const inserted = await db
+    .insert(payments)
+    .values({
+      createdById: session.user.id,
+      fromType: from.type,
+      fromId: from.id,
+      fromName: from.name,
+      toType: to.type,
+      toId: to.id,
+      toName: to.name,
+      projectId: project_id || null,
+      amount,
+      paymentDate: payment_date,
+      description: description || null,
+    })
+    .returning();
+
+  return Response.json({ data: inserted[0] });
 }

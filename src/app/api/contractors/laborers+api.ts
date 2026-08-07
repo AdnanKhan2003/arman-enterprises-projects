@@ -1,7 +1,7 @@
 import { auth } from "../../../lib/auth";
 import { db } from "../../../db";
 import { users, sessions, accounts, attendance, projectAssignments, payments } from "../../../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -119,7 +119,7 @@ export async function DELETE(req: Request) {
     // 1. Delete dependent app records
     await db.delete(attendance).where(eq(attendance.laborerId, id));
     await db.delete(projectAssignments).where(eq(projectAssignments.laborerId, id));
-    await db.delete(payments).where(eq(payments.laborerId, id));
+    await db.delete(payments).where(or(eq(payments.fromId, id), eq(payments.toId, id)));
 
     // 2. Delete auth dependency records
     await db.delete(sessions).where(eq(sessions.userId, id));
