@@ -8,9 +8,10 @@ import { useRouter } from "expo-router";
 interface PageHeaderProps {
   title: string;
   showBack?: boolean;
+  rightElement?: React.ReactNode;
 }
 
-export function PageHeader({ title, showBack = true }: PageHeaderProps) {
+export function PageHeader({ title, showBack = true, rightElement }: PageHeaderProps) {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -25,7 +26,10 @@ export function PageHeader({ title, showBack = true }: PageHeaderProps) {
         )}
         <Text className="text-3xl font-bold text-slate-900 dark:text-slate-50">{title}</Text>
       </View>
-      <ThemeToggle />
+      <View className="flex-row items-center gap-3">
+        {rightElement}
+        <ThemeToggle />
+      </View>
     </View>
   );
 }

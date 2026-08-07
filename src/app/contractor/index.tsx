@@ -127,7 +127,7 @@ export default function ContractorDashboard() {
           <Button title="Review Timesheets" variant="outline" onPress={() => router.push("/contractor/timesheets" as any)} />
         </Card>
 
-        <Card>
+        <Card className="mb-4">
           <View className="flex-row items-center gap-3 mb-4">
             <View className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-full items-center justify-center">
               <Ionicons name="construct" size={24} color="#F59E0B" />
@@ -138,6 +138,19 @@ export default function ContractorDashboard() {
             </View>
           </View>
           <Button title="Manage Laborers" variant="outline" onPress={() => router.push("/contractor/laborers" as any)} />
+        </Card>
+
+        <Card>
+          <View className="flex-row items-center gap-3 mb-4">
+            <View className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full items-center justify-center">
+              <Ionicons name="wallet" size={24} color="#A855F7" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Financial Ledger</Text>
+              <Text className="text-sm text-slate-500 dark:text-slate-400">Track income and expenses with PDF/Excel exports</Text>
+            </View>
+          </View>
+          <Button title="View Ledger" variant="outline" onPress={() => router.push("/contractor/ledger" as any)} />
         </Card>
       </ScrollView>
     </Screen>

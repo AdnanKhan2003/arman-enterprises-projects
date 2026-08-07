@@ -68,6 +68,14 @@ export const contactsApi = {
   },
 
   /**
+   * Fetch all clients only
+   */
+  async getClients(contractorId: string) {
+    const json = await apiFetch('/api/contacts');
+    return { data: json.clients };
+  },
+
+  /**
    * Update an existing Client
    */
   async updateClient(data: {
