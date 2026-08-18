@@ -29,13 +29,6 @@
       "when": 1786099716469,
       "tag": "0003_sticky_micromacro",
       "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1786970236911,
-      "tag": "0004_payments_redesign",
-      "breakpoints": true
     }
   ]
 }
