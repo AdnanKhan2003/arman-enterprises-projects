@@ -11,6 +11,7 @@ export const LedgerInvoiceItemSchema = z.object({
 
 export const CreateLedgerInvoiceSchema = z.object({
   title: z.string().optional(),
+  project_id: z.string().nullable().optional(),
   scope: z.enum(["Income", "Expense", "Both"]),
   format: z.enum(["pdf", "excel"]),
   items: z.array(LedgerInvoiceItemSchema),
@@ -19,6 +20,7 @@ export const CreateLedgerInvoiceSchema = z.object({
 export const UpdateLedgerInvoiceSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
+  project_id: z.string().nullable().optional(),
   scope: z.enum(["Income", "Expense", "Both"]).optional(),
   format: z.enum(["pdf", "excel"]).optional(),
   items: z.array(LedgerInvoiceItemSchema).optional(),
@@ -27,9 +29,10 @@ export const UpdateLedgerInvoiceSchema = z.object({
 export type LedgerInvoiceItem = z.infer<typeof LedgerInvoiceItemSchema>;
 
 export const ledgerInvoicesApi = {
-  async getLedgerInvoices() {
+  async getLedgerInvoices(projectId?: string) {
     try {
-      const json = await apiFetch(`/api/ledger-invoices`);
+      const qs = projectId ? `?projectId=${projectId}` : "";
+      const json = await apiFetch(`/api/ledger-invoices${qs}`);
       return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };

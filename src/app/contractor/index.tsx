@@ -1,122 +1,108 @@
-import React, { useEffect, useState } from "react";
-import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
+import React from "react";
+import { View, ScrollView, useColorScheme, Pressable } from "react-native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { ThemeToggle } from "../../components/ui/ThemeToggle";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { authApi } from "../../api/auth";
 import { authClient } from "../../lib/auth-client";
-import { projectsApi } from "../../api/projects";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 
-export default function ContractorDashboard() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const { data: session } = authClient.useSession();
-  
-  const [projects, setProjects] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+export default function MoreScreen() {
+  const isDark = useColorScheme() === "dark";
   const router = useRouter();
-
-  const fetchData = async () => {
-    if (!session?.user?.id) return;
-    try {
-      const projectsRes = await projectsApi.getProjects("contractor", session.user.id);
-      
-      if (projectsRes.data) setProjects(projectsRes.data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [session?.user?.id]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
+  const { data: session } = authClient.useSession();
 
   return (
     <Screen>
-      <View className="flex-row justify-between items-center px-5 pt-8 pb-6">
-        <View>
-          <Text className="text-3xl font-bold text-slate-900 dark:text-slate-50">Dashboard</Text>
-          <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">
-            Welcome, {session?.user?.name || "Contractor"}
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-2">
-          <ThemeToggle />
-          <Pressable onPress={() => authApi.logout()} className="p-2 active:opacity-50">
-            <Ionicons name="log-out-outline" size={24} color={isDark ? "#F8FAFC" : "#0F172A"} />
-          </Pressable>
-        </View>
-      </View>
+      <PageHeader title="More" showBack={false} />
 
-      <ScrollView 
-        contentContainerClassName="px-5 pb-10"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
-      >
-        {/* Projects Section */}
-        <View className="flex-row justify-between items-center mb-3">
-          <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">Active Projects</Text>
-          <Pressable onPress={() => router.push("/contractor/projects" as any)} className="active:opacity-50">
-            <Text className="text-blue-500 font-medium">View All</Text>
-          </Pressable>
-        </View>
-        
-        {projects.length === 0 ? (
-          <Text className="text-sm italic mt-2 mb-4 text-slate-500 dark:text-slate-400">No projects found. Create one to get started.</Text>
-        ) : (
-          projects.map(p => (
-            <Card key={p.id}>
-              <View className="flex-row justify-between items-center">
-                <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">{p.name}</Text>
-                <Ionicons name="chevron-forward" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
-              </View>
-              {p.location && <Text className="text-xs text-slate-500 dark:text-slate-400 mt-1">{p.location}</Text>}
-              {p.client && <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">Client: {p.client.name}</Text>}
-            </Card>
-          ))
-        )}
-
-        <View className="flex-row justify-between items-center mb-3 mt-8">
-          <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">Business Management</Text>
-        </View>
-
-        <Card className="mb-4">
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-full items-center justify-center">
-              <Ionicons name="construct" size={24} color="#F59E0B" />
+      <ScrollView contentContainerClassName="px-5 pb-10">
+        {/* Who's signed in */}
+        <Card className="mb-6">
+          <View className="flex-row items-center gap-3">
+            <View className="w-12 h-12 rounded-full bg-slate-900 dark:bg-slate-50 items-center justify-center">
+              <Text className="text-lg font-bold text-white dark:text-slate-900">
+                {(session?.user?.name || "C").charAt(0).toUpperCase()}
+              </Text>
             </View>
             <View className="flex-1">
-              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Laborers</Text>
-              <Text className="text-sm text-slate-500 dark:text-slate-400">Create login credentials for your workforce</Text>
+              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                {session?.user?.name || "Contractor"}
+              </Text>
+              <Text className="text-sm text-slate-500 dark:text-slate-400">{session?.user?.email}</Text>
             </View>
           </View>
-          <Button title="Manage Laborers" variant="outline" onPress={() => router.push("/contractor/laborers" as any)} />
         </Card>
 
-        <Card>
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-full items-center justify-center">
-              <Ionicons name="book" size={24} color="#6366F1" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">Clients & Vendors</Text>
-              <Text className="text-sm text-slate-500 dark:text-slate-400">Manage your contacts address book</Text>
-            </View>
-          </View>
-          <Button title="Manage Contacts" variant="outline" onPress={() => router.push("/contractor/contacts" as any)} />
-        </Card>
+        <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Business Management</Text>
+
+        <MenuCard
+          icon="construct"
+          iconColor="#F59E0B"
+          iconBg="bg-orange-100 dark:bg-orange-900/50"
+          title="Laborers"
+          subtitle="Create login credentials for your workforce"
+          onPress={() => router.push("/contractor/laborers" as any)}
+          isDark={isDark}
+        />
+
+        <MenuCard
+          icon="book"
+          iconColor="#6366F1"
+          iconBg="bg-indigo-100 dark:bg-indigo-900/50"
+          title="Clients & Vendors"
+          subtitle="Manage your contacts address book"
+          onPress={() => router.push("/contractor/contacts" as any)}
+          isDark={isDark}
+        />
+
+        <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3 mt-6">Account</Text>
+
+        <Pressable
+          onPress={() => authApi.logout()}
+          className="flex-row items-center gap-3 py-4 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:opacity-60"
+        >
+          <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+          <Text className="text-[15px] font-medium text-red-500">Sign out</Text>
+        </Pressable>
       </ScrollView>
     </Screen>
   );
 }
 
-
+function MenuCard({
+  icon,
+  iconColor,
+  iconBg,
+  title,
+  subtitle,
+  onPress,
+  isDark,
+}: {
+  icon: any;
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  isDark: boolean;
+}) {
+  return (
+    <Pressable onPress={onPress} className="active:opacity-70">
+      <Card className="mb-3">
+        <View className="flex-row items-center gap-3">
+          <View className={`w-12 h-12 rounded-full items-center justify-center ${iconBg}`}>
+            <Ionicons name={icon} size={24} color={iconColor} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">{title}</Text>
+            <Text className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+        </View>
+      </Card>
+    </Pressable>
+  );
+}

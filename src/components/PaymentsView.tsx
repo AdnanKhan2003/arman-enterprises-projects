@@ -12,6 +12,7 @@ import { PageHeader } from "./ui/PageHeader";
 import { CustomModal } from "./ui/CustomModal";
 import { authClient } from "../lib/auth-client";
 import { paymentsApi, PartyType } from "../api/payments";
+import { projectsApi } from "../api/projects";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,7 +26,14 @@ const TYPE_LABEL: Record<PartyType, string> = {
 
 type Party = { id: string; name: string };
 
-export function PaymentsView() {
+type Props = {
+  /** Scope to one project. Omit for every payment, including General. */
+  projectId?: string;
+  projectName?: string;
+  embedded?: boolean;
+};
+
+export function PaymentsView({ projectId, projectName, embedded = false }: Props) {
   const isDark = useColorScheme() === "dark";
   const { data: session } = authClient.useSession();
   const myId = session?.user?.id;
@@ -33,8 +41,10 @@ export function PaymentsView() {
 
   const [payments, setPayments] = useState<any[]>([]);
   const [parties, setParties] = useState<any>(null);
+  const [projects, setProjects] = useState<Party[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"mine" | "others">("mine");
+  const [projectFilter, setProjectFilter] = useState<"all" | "general">("all");
 
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -44,17 +54,29 @@ export function PaymentsView() {
   const [cpName, setCpName] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [formProjectId, setFormProjectId] = useState<string | null>(projectId || null);
+  // Remembered across saves so a run of payments for one site is one tap each.
+  const [lastProjectId, setLastProjectId] = useState<string | null>(projectId || null);
 
   const fetchData = async () => {
-    const [payRes, partyRes] = await Promise.all([paymentsApi.getPayments(), paymentsApi.getParties()]);
+    const [payRes, partyRes, projRes] = await Promise.all([
+      paymentsApi.getPayments(),
+      paymentsApi.getParties(),
+      projectsApi.getProjects(role, myId || ""),
+    ]);
     if (payRes.data) setPayments(payRes.data);
     if (partyRes.data) setParties(partyRes.data);
+    if (projRes.data) {
+      // Contractors get a flat list; laborers get [{ projects: {...} }].
+      const list = (projRes.data as any[]).map((r) => (r.projects ? r.projects : r));
+      setProjects(list.map((p) => ({ id: p.id, name: p.name })));
+    }
   };
 
   useFocusEffect(
     useCallback(() => {
       fetchData();
-    }, [session]),
+    }, [session, projectId]),
   );
 
   const onRefresh = async () => {
@@ -63,14 +85,23 @@ export function PaymentsView() {
     setRefreshing(false);
   };
 
-  const totalReceived = payments.filter((p) => p.toId === myId).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const totalPaid = payments.filter((p) => p.fromId === myId).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const projectNameOf = (id: string | null) => projects.find((p) => p.id === id)?.name;
+
+  // Project scope first, then the mine/others split.
+  const scoped = projectId
+    ? payments.filter((p) => p.projectId === projectId)
+    : projectFilter === "general"
+      ? payments.filter((p) => !p.projectId)
+      : payments;
+
+  const totalReceived = scoped.filter((p) => p.toId === myId).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const totalPaid = scoped.filter((p) => p.fromId === myId).reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const net = totalReceived - totalPaid;
 
   const isContractor = role === "contractor";
-  const mine = payments.filter((p) => p.fromId === myId || p.toId === myId);
-  const others = payments.filter((p) => p.fromId !== myId && p.toId !== myId);
-  const visible = isContractor ? (tab === "mine" ? mine : others) : payments;
+  const mine = scoped.filter((p) => p.fromId === myId || p.toId === myId);
+  const others = scoped.filter((p) => p.fromId !== myId && p.toId !== myId);
+  const visible = isContractor ? (tab === "mine" ? mine : others) : scoped;
 
   const typeOptions: PartyType[] =
     role === "contractor" ? ["laborer", "client", "vendor"] : ["contractor", "client", "vendor"];
@@ -90,6 +121,7 @@ export function PaymentsView() {
     setCpName("");
     setAmount("");
     setDescription("");
+    setFormProjectId(projectId || lastProjectId);
   };
 
   const openModal = () => {
@@ -110,6 +142,7 @@ export function PaymentsView() {
       amount,
       payment_date: new Date().toISOString().split("T")[0],
       description: description || undefined,
+      project_id: formProjectId || undefined,
     });
     setSubmitting(false);
 
@@ -117,6 +150,7 @@ export function PaymentsView() {
       Toast.show({ type: "error", text1: "Failed to save payment" });
     } else {
       Toast.show({ type: "success", text1: "Payment saved" });
+      setLastProjectId(formProjectId);
       setModalVisible(false);
       resetForm();
       fetchData();
@@ -125,10 +159,8 @@ export function PaymentsView() {
 
   const todayLabel = new Date().toLocaleDateString();
 
-  return (
-    <Screen>
-      <PageHeader title="Payments" showBack={false} />
-
+  const body = (
+    <>
       <ScrollView
         contentContainerClassName="px-5 pb-10 mt-2"
         refreshControl={
@@ -158,6 +190,30 @@ export function PaymentsView() {
         </View>
 
         <Button title="+  Add Payment" onPress={openModal} className="mb-5" />
+
+        {/* All vs General — only meaningful outside a project */}
+        {!projectId && (
+          <View className="flex-row bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-3">
+            {(
+              [
+                ["all", "All projects"],
+                ["general", "General only"],
+              ] as const
+            ).map(([key, label]) => (
+              <Pressable
+                key={key}
+                onPress={() => setProjectFilter(key)}
+                className={`flex-1 py-2 items-center rounded-md ${projectFilter === key ? "bg-white dark:bg-slate-700 shadow-sm" : ""}`}
+              >
+                <Text
+                  className={`text-xs font-semibold ${projectFilter === key ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400"}`}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {isContractor && (
           <View className="flex-row bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-4">
@@ -194,6 +250,7 @@ export function PaymentsView() {
         ) : (
           visible.map((p) => {
             const involved = p.fromId === myId || p.toId === myId;
+            const tag = !projectId ? <ProjectTag name={projectNameOf(p.projectId)} /> : null;
 
             if (!involved) {
               // Contractor "Others" view: a payment between two other parties.
@@ -210,6 +267,7 @@ export function PaymentsView() {
                       {p.description ? (
                         <Text className="text-sm text-slate-500 dark:text-slate-400 mt-1">{p.description}</Text>
                       ) : null}
+                      {tag}
                     </View>
                     <Text className="text-lg font-bold text-slate-700 dark:text-slate-300">{money(Number(p.amount))}</Text>
                   </View>
@@ -230,6 +288,7 @@ export function PaymentsView() {
                     {p.description ? (
                       <Text className="text-sm text-slate-500 dark:text-slate-400 mt-1">{p.description}</Text>
                     ) : null}
+                    {tag}
                   </View>
                   <Text
                     className={`text-lg font-bold ${received ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
@@ -261,6 +320,37 @@ export function PaymentsView() {
             </Pressable>
           ))}
         </View>
+
+        {/* Project — locked when opened from inside a project */}
+        <Text className="text-xs text-slate-500 dark:text-slate-400 mb-1">Project</Text>
+        {projectId ? (
+          <View className="border rounded-lg p-3 mb-3 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 flex-row items-center gap-2">
+            <Ionicons name="business" size={14} color={isDark ? "#94A3B8" : "#64748B"} />
+            <Text className="text-[15px] text-slate-500 dark:text-slate-400">{projectName || "This project"}</Text>
+          </View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
+            <Pressable
+              onPress={() => setFormProjectId(null)}
+              className={`mr-2 px-3 py-1.5 rounded-full border ${!formProjectId ? "bg-slate-900 border-slate-900 dark:bg-slate-50 dark:border-slate-50" : "border-slate-300 dark:border-slate-700"}`}
+            >
+              <Text className={`text-xs font-medium ${!formProjectId ? "text-white dark:text-slate-900" : "text-slate-600 dark:text-slate-400"}`}>
+                General
+              </Text>
+            </Pressable>
+            {projects.map((p) => (
+              <Pressable
+                key={p.id}
+                onPress={() => setFormProjectId(p.id)}
+                className={`mr-2 px-3 py-1.5 rounded-full border ${formProjectId === p.id ? "bg-slate-900 border-slate-900 dark:bg-slate-50 dark:border-slate-50" : "border-slate-300 dark:border-slate-700"}`}
+              >
+                <Text className={`text-xs font-medium ${formProjectId === p.id ? "text-white dark:text-slate-900" : "text-slate-600 dark:text-slate-400"}`}>
+                  {p.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Counterparty type */}
         <Text className="text-xs text-slate-500 dark:text-slate-400 mb-1">
@@ -322,6 +412,24 @@ export function PaymentsView() {
 
         <Button title="Save Payment" onPress={handleSave} loading={submitting} className="mt-2" />
       </CustomModal>
+    </>
+  );
+
+  if (embedded) return <View className="flex-1">{body}</View>;
+
+  return (
+    <Screen>
+      <PageHeader title="Payments" showBack={false} />
+      {body}
     </Screen>
+  );
+}
+
+function ProjectTag({ name }: { name?: string }) {
+  return (
+    <View className="flex-row items-center gap-1 mt-2 self-start px-2 py-0.5 rounded bg-sky-100 dark:bg-sky-900/40">
+      <Ionicons name={name ? "business" : "albums-outline"} size={9} color="#0284C7" />
+      <Text className="text-[10px] font-bold text-sky-700 dark:text-sky-400">{name || "General"}</Text>
+    </View>
   );
 }

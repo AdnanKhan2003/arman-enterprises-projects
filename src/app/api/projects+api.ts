@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "../../db";
-import { clients, projectAssignments, projects, attendance, payments } from "../../db/schema";
+import { clients, projectAssignments, projects, attendance, payments, ledgerInvoices } from "../../db/schema";
 import { auth } from "../../lib/auth";
 
 export async function GET(request: Request) {
@@ -117,9 +117,16 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, name, location, description, client_id, laborer_ids } = body;
+    const { id, name, location, description, client_id, laborer_ids, status } = body;
 
-    if (!id || !name) {
+    if (!id) {
+      return new Response("Missing project id", { status: 400 });
+    }
+
+    // Marking a project complete (or reopening it) doesn't carry the rest of the form.
+    const statusOnly = status !== undefined && name === undefined;
+
+    if (!statusOnly && !name) {
       return new Response("Missing required fields", { status: 400 });
     }
 
@@ -136,12 +143,17 @@ export async function PATCH(request: Request) {
 
     const updated = await db
       .update(projects)
-      .set({
-        name,
-        location,
-        description,
-        clientId: client_id || null,
-      })
+      .set(
+        statusOnly
+          ? { status }
+          : {
+              name,
+              location,
+              description,
+              clientId: client_id || null,
+              ...(status !== undefined ? { status } : {}),
+            },
+      )
       .where(eq(projects.id, id))
       .returning();
 
@@ -194,10 +206,13 @@ export async function DELETE(request: Request) {
       return new Response("Project not found", { status: 404 });
     }
 
-    // Perform Cascading Delete
+    // Financial records outlive the project they were tagged with: unlink them
+    // so the money history survives. Attendance and assignments have no meaning
+    // outside the project, so they go with it.
+    await db.update(payments).set({ projectId: null }).where(eq(payments.projectId, id));
+    await db.update(ledgerInvoices).set({ projectId: null }).where(eq(ledgerInvoices.projectId, id));
     await db.delete(attendance).where(eq(attendance.projectId, id));
     await db.delete(projectAssignments).where(eq(projectAssignments.projectId, id));
-    await db.delete(payments).where(eq(payments.projectId, id));
     await db.delete(projects).where(eq(projects.id, id));
 
     return Response.json({ success: true });

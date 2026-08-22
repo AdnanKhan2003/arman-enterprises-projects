@@ -26,20 +26,6 @@ export default function ContractorTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="timesheets"
-        options={{
-          title: "Timesheet",
-          tabBarIcon: ({ color, size }) => <Ionicons name="time-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Dashboard",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
         name="ledger"
         options={{
           title: "Ledger",
@@ -53,8 +39,18 @@ export default function ContractorTabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="cash-outline" color={color} size={size} />,
         }}
       />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "More",
+          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal-circle-outline" color={color} size={size} />,
+        }}
+      />
 
-      {/* Pushed screens — reachable from the dashboard, hidden from the tab bar */}
+      {/* Pushed screens — reachable by navigation, hidden from the tab bar.
+          Timesheets has no tab: attendance only exists inside a project. */}
+      <Tabs.Screen name="project/[id]" options={{ href: null }} />
+      <Tabs.Screen name="timesheets" options={{ href: null }} />
       <Tabs.Screen name="laborers" options={{ href: null }} />
       <Tabs.Screen name="contacts" options={{ href: null }} />
       <Tabs.Screen name="invoice-builder" options={{ href: null }} />

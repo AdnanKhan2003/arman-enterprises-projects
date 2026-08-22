@@ -1,6 +1,6 @@
 import { auth } from "../../lib/auth";
 import { db } from "../../db";
-import { ledgerInvoices } from "../../db/schema";
+import { ledgerInvoices, projects } from "../../db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { CreateLedgerInvoiceSchema, UpdateLedgerInvoiceSchema } from "../../api/ledgerInvoices";
 
@@ -16,13 +16,26 @@ export async function GET(request: Request) {
   const { userId, error } = await requireContractor(request);
   if (error) return error;
 
+  const url = new URL(request.url);
+  const projectId = url.searchParams.get("projectId");
+
   const rows = await db
-    .select()
+    .select({ record: ledgerInvoices, project: projects })
     .from(ledgerInvoices)
-    .where(eq(ledgerInvoices.contractorId, userId!))
+    .leftJoin(projects, eq(ledgerInvoices.projectId, projects.id))
+    .where(
+      projectId
+        ? and(eq(ledgerInvoices.contractorId, userId!), eq(ledgerInvoices.projectId, projectId))
+        : eq(ledgerInvoices.contractorId, userId!),
+    )
     .orderBy(desc(ledgerInvoices.createdAt));
 
-  return Response.json({ data: rows });
+  const formatted = rows.map((r) => ({
+    ...r.record,
+    project: r.project ? { id: r.project.id, name: r.project.name } : null,
+  }));
+
+  return Response.json({ data: formatted });
 }
 
 export async function POST(request: Request) {
@@ -33,10 +46,10 @@ export async function POST(request: Request) {
   const parsed = CreateLedgerInvoiceSchema.safeParse(body);
   if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
 
-  const { title, scope, format, items } = parsed.data;
+  const { title, scope, format, items, project_id } = parsed.data;
   const inserted = await db
     .insert(ledgerInvoices)
-    .values({ contractorId: userId!, title, scope, format, items })
+    .values({ contractorId: userId!, title, scope, format, items, projectId: project_id || null })
     .returning();
 
   return Response.json({ data: inserted[0] });
@@ -50,7 +63,7 @@ export async function PUT(request: Request) {
   const parsed = UpdateLedgerInvoiceSchema.safeParse(body);
   if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
 
-  const { id, title, scope, format, items } = parsed.data;
+  const { id, title, scope, format, items, project_id } = parsed.data;
   const updated = await db
     .update(ledgerInvoices)
     .set({
@@ -58,6 +71,7 @@ export async function PUT(request: Request) {
       ...(scope !== undefined ? { scope } : {}),
       ...(format !== undefined ? { format } : {}),
       ...(items !== undefined ? { items } : {}),
+      ...(project_id !== undefined ? { projectId: project_id || null } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(ledgerInvoices.id, id), eq(ledgerInvoices.contractorId, userId!)))

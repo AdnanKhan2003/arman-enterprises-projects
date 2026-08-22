@@ -95,11 +95,27 @@ export const projectsApi = {
   /**
    * Update a project's details
    */
-  async updateProject(id: string, data: { name?: string; location?: string; description?: string; client_id?: string; laborer_ids?: string[] }) {
+  async updateProject(id: string, data: { name?: string; location?: string; description?: string; client_id?: string; laborer_ids?: string[]; status?: string }) {
     try {
       const json = await apiFetch('/api/projects', {
         method: 'PATCH',
         body: JSON.stringify({ id, ...data })
+      });
+      return { data: json.data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
+  /**
+   * Mark a project completed or reopen it. Preferred over deleting: it keeps the
+   * timesheet and money history intact.
+   */
+  async setProjectStatus(id: string, status: "active" | "completed") {
+    try {
+      const json = await apiFetch('/api/projects', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, status })
       });
       return { data: json.data, error: null };
     } catch (error) {

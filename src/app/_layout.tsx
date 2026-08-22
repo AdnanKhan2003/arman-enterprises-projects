@@ -23,7 +23,8 @@ export default function RootLayout() {
         router.replace("/sign-in");
       }
     } else {
-      // If user IS logged in and trying to view an auth screen (or root index), send to dashboard
+      // If user IS logged in and trying to view an auth screen (or root index), send them
+      // to the screen they came to use: projects for contractors, jobs for laborers.
       if (
         inAuthGroup ||
         (segments as string[]).length === 0 ||
@@ -31,9 +32,9 @@ export default function RootLayout() {
       ) {
         // Redirect based on custom 'role' field we added to the schema
         if ((session.user as any).role === "contractor") {
-          router.replace("/contractor" as any);
+          router.replace("/contractor/projects" as any);
         } else {
-          router.replace("/laborer" as any);
+          router.replace("/laborer/projects" as any);
         }
       }
     }

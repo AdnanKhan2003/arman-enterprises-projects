@@ -12,6 +12,8 @@ import { projectsApi } from "../../api/projects";
 import { contactsApi } from "../../api/contact";
 import { laborerApi } from "../../api/laborer";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { attendanceApi } from "../../api/attendance";
 import Toast from "react-native-toast-message";
 
 export default function ProjectsScreen() {
@@ -24,6 +26,9 @@ export default function ProjectsScreen() {
   const [clients, setClients] = useState<any[]>([]);
   const [laborers, setLaborers] = useState<any[]>([]);
   
+  const router = useRouter();
+  const [pendingByProject, setPendingByProject] = useState<Record<string, number>>({});
+  const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -53,6 +58,14 @@ export default function ProjectsScreen() {
       ]);
 
       if (projectsRes.data) setProjects(projectsRes.data);
+
+      // Pending clock-ins per project, so the list shows where review is owed.
+      const pendingRes = await attendanceApi.getPendingAttendance();
+      const counts: Record<string, number> = {};
+      for (const rec of (pendingRes.data as any[]) || []) {
+        counts[rec.projectId] = (counts[rec.projectId] || 0) + 1;
+      }
+      setPendingByProject(counts);
       if (contactsRes.clients) setClients(contactsRes.clients);
       if (laborersRes.laborers) setLaborers(laborersRes.laborers);
     } catch (e) {
@@ -179,6 +192,20 @@ export default function ProjectsScreen() {
     }
   };
 
+  const toggleStatus = async (project: any) => {
+    const next = project.status === "completed" ? "active" : "completed";
+    const { error } = await projectsApi.setProjectStatus(project.id, next);
+    if (error) {
+      Toast.show({ type: "error", text1: "Could not update project" });
+      return;
+    }
+    setProjects((prev) => prev.map((x) => (x.id === project.id ? { ...x, status: next } : x)));
+    Toast.show({
+      type: "success",
+      text1: next === "completed" ? "Marked completed" : "Project reopened",
+    });
+  };
+
   const confirmDeleteProject = async () => {
     if (!projectToDelete) return;
     
@@ -265,6 +292,27 @@ export default function ProjectsScreen() {
         </Pressable>
       </View>
 
+      <View className="flex-row bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mx-5 mb-3">
+        {(
+          [
+            ["active", "Active"],
+            ["all", "All"],
+          ] as const
+        ).map(([key, label]) => (
+          <Pressable
+            key={key}
+            onPress={() => setStatusFilter(key)}
+            className={"flex-1 py-2 items-center rounded-md " + (statusFilter === key ? "bg-white dark:bg-slate-700 shadow-sm" : "")}
+          >
+            <Text
+              className={"text-xs font-semibold " + (statusFilter === key ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400")}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       <ScrollView 
         contentContainerClassName="px-5 pb-10"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
@@ -277,15 +325,28 @@ export default function ProjectsScreen() {
             </Text>
           </View>
         ) : (
-          projects.map(p => (
+          projects
+            .filter((p) => statusFilter === "all" || p.status !== "completed")
+            .sort((a, b) => (a.status === "completed" ? 1 : 0) - (b.status === "completed" ? 1 : 0))
+            .map(p => (
             <Card key={p.id} className="mb-4">
               <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center flex-1">
+                <Pressable
+                  onPress={() => router.push(("/contractor/project/" + p.id) as any)}
+                  className="flex-row items-center flex-1 active:opacity-70"
+                >
                   <View className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center mr-4">
                     <Ionicons name="business" size={24} color="#3B82F6" />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">{p.name}</Text>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-base font-semibold text-slate-900 dark:text-slate-50">{p.name}</Text>
+                      {p.status === "completed" ? (
+                        <View className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700">
+                          <Text className="text-[10px] font-bold text-slate-600 dark:text-slate-300">COMPLETED</Text>
+                        </View>
+                      ) : null}
+                    </View>
                     {p.location ? <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">{p.location}</Text> : null}
                     {p.client ? <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">Client: {p.client.name}</Text> : null}
                     {p.laborerIds?.length > 0 ? (
@@ -293,9 +354,27 @@ export default function ProjectsScreen() {
                         {p.laborerIds.length} {p.laborerIds.length === 1 ? 'Laborer' : 'Laborers'} Assigned
                       </Text>
                     ) : null}
+                    {pendingByProject[p.id] > 0 ? (
+                      <View className="flex-row items-center gap-1 mt-2 self-start px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40">
+                        <Ionicons name="time" size={10} color="#B45309" />
+                        <Text className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                          {pendingByProject[p.id]} pending
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
-                </View>
+                </Pressable>
                 <View className="flex-row gap-4 ml-4">
+                  <Pressable
+                    onPress={() => toggleStatus(p)}
+                    className="active:opacity-50 p-2"
+                  >
+                    <Ionicons
+                      name={p.status === "completed" ? "refresh" : "checkmark-done"}
+                      size={20}
+                      color="#10B981"
+                    />
+                  </Pressable>
                   <Pressable 
                     onPress={() => openEditModal(p)}
                     className="active:opacity-50 p-2"
@@ -392,7 +471,9 @@ export default function ProjectsScreen() {
           </View>
           <Text className="text-xl font-bold text-center text-slate-900 dark:text-slate-50">Delete Project?</Text>
           <Text className="text-base text-center mt-2 text-slate-500 dark:text-slate-400">
-            Are you sure you want to delete <Text className="font-bold">{projectToDelete?.name}</Text>? This action will also delete all associated attendance records and assignments. This cannot be undone.
+            Deleting <Text className="font-bold">{projectToDelete?.name}</Text> removes its timesheet records and laborer
+            assignments for good. Payments and ledger invoices are kept — they just stop being tagged to this project.
+            To keep everything, mark the project completed instead.
           </Text>
         </View>
         <View className="flex-row mt-4 gap-3">

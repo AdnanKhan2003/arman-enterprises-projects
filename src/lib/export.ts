@@ -13,6 +13,14 @@ type Invoice = {
   thirdPartyName?: string | null;
 };
 
+const escapeHtml = (v: unknown) =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 const money = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -49,7 +57,17 @@ function totalsOf(invoices: Invoice[]) {
   return { totalIncome, totalExpense, net: totalIncome - totalExpense };
 }
 
-export async function exportLedgerToPDF(invoices: Invoice[], contractorName: string) {
+type ExportOptions = {
+  /** Project this document covers. Omitted for a general (untagged) statement. */
+  projectName?: string;
+};
+
+export async function exportLedgerToPDF(
+  invoices: Invoice[],
+  contractorName: string,
+  options: ExportOptions = {},
+) {
+  const projectName = options.projectName;
   const generatedAt = new Date();
   const { totalIncome, totalExpense, net } = totalsOf(invoices);
   const period = periodOf(invoices);
@@ -67,8 +85,8 @@ export async function exportLedgerToPDF(invoices: Invoice[], contractorName: str
         <tr${zebra}>
           <td class="muted">${shortDate(i.issueDate)}</td>
           <td><span class="type-badge ${typeClass}">${i.type}</span></td>
-          <td class="entity">${entityOf(i)}</td>
-          <td class="muted">${i.description || '—'}</td>
+          <td class="entity">${escapeHtml(entityOf(i))}</td>
+          <td class="muted">${i.description ? escapeHtml(i.description) : '—'}</td>
           <td class="amount ${amountClass}">${money(Number(i.amount))}</td>
         </tr>`;
     })
@@ -122,7 +140,7 @@ export async function exportLedgerToPDF(invoices: Invoice[], contractorName: str
             <div class="logo">S</div>
             <div>
               <div class="brand-name">SiteLedger</div>
-              <div class="brand-sub">Invoice</div>
+              <div class="brand-sub">${projectName ? escapeHtml(projectName) : 'Invoice'}</div>
             </div>
           </div>
           <div class="meta">
@@ -135,13 +153,13 @@ export async function exportLedgerToPDF(invoices: Invoice[], contractorName: str
         <div class="parties">
           <div>
             <div class="label">Prepared for</div>
-            <div class="party-name">${contractorName}</div>
+            <div class="party-name">${escapeHtml(contractorName)}</div>
             <div style="color:#64748B;">Contractor</div>
           </div>
           <div style="text-align:right;">
-            <div class="label">Summary</div>
-            <div class="party-name">${invoices.length} transactions</div>
-            <div style="color:#64748B;">Currency: USD ($)</div>
+            <div class="label">${projectName ? 'Project' : 'Summary'}</div>
+            <div class="party-name">${projectName ? escapeHtml(projectName) : invoices.length + ' transactions'}</div>
+            <div style="color:#64748B;">${invoices.length} transactions · USD ($)</div>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   ScrollView,
@@ -16,6 +16,7 @@ import { Input } from "../../components/ui/Input";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { authClient } from "../../lib/auth-client";
 import { ledgerInvoicesApi } from "../../api/ledgerInvoices";
+import { projectsApi } from "../../api/projects";
 
 type Scope = "Expense" | "Income" | "Both";
 type Format = "pdf" | "excel";
@@ -60,6 +61,9 @@ export default function InvoiceBuilderScreen() {
     title?: string;
     items?: string;
     nextNo?: string;
+    projectId?: string;
+    projectName?: string;
+    lockProject?: string;
   }>();
   const editId = typeof params.id === "string" && params.id ? params.id : null;
   const nextNo = params.nextNo ? parseInt(params.nextNo as string, 10) || 1 : 1;
@@ -85,6 +89,17 @@ export default function InvoiceBuilderScreen() {
     }
   });
   const [savingFmt, setSavingFmt] = useState<Format | null>(null);
+
+  const projectLocked = params.lockProject === "1";
+  const [projId, setProjId] = useState<string | null>(params.projectId ? String(params.projectId) : null);
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (projectLocked) return;
+    projectsApi.getProjects("contractor", session?.user?.id || "").then((res) => {
+      if (res.data) setProjects((res.data as any[]).map((x) => ({ id: x.id, name: x.name })));
+    });
+  }, [session?.user?.id, projectLocked]);
 
   const defaultType: RowType = scope === "Income" ? "Income" : "Expense";
 
@@ -128,8 +143,8 @@ export default function InvoiceBuilderScreen() {
       }));
 
       const res = editId
-        ? await ledgerInvoicesApi.updateLedgerInvoice({ id: editId, scope, format: saveFormat, items, title: title || undefined })
-        : await ledgerInvoicesApi.createLedgerInvoice({ scope, format: saveFormat, items, title: title || undefined });
+        ? await ledgerInvoicesApi.updateLedgerInvoice({ id: editId, scope, format: saveFormat, items, title: title || undefined, project_id: projId })
+        : await ledgerInvoicesApi.createLedgerInvoice({ scope, format: saveFormat, items, title: title || undefined, project_id: projId });
 
       if (res.error) throw res.error;
 
@@ -160,6 +175,41 @@ export default function InvoiceBuilderScreen() {
           <Text className="text-sm text-slate-500 dark:text-slate-400 mb-5">
             Choose which transactions you'll enter.
           </Text>
+
+          {/* Project — locked when the builder was opened from inside one */}
+          <Text className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">PROJECT</Text>
+          {projectLocked ? (
+            <View className="flex-row items-center gap-2 border rounded-lg p-3 mb-5 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+              <Ionicons name="business" size={14} color={isDark ? "#94A3B8" : "#64748B"} />
+              <Text className="text-[15px] text-slate-500 dark:text-slate-400">
+                {params.projectName || "This project"}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-5">
+              <Pressable
+                onPress={() => setProjId(null)}
+                className={`mr-2 px-3 py-1.5 rounded-full border ${!projId ? "bg-slate-900 border-slate-900 dark:bg-slate-50 dark:border-slate-50" : "border-slate-300 dark:border-slate-700"}`}
+              >
+                <Text className={`text-xs font-medium ${!projId ? "text-white dark:text-slate-900" : "text-slate-600 dark:text-slate-400"}`}>
+                  General
+                </Text>
+              </Pressable>
+              {projects.map((pr) => (
+                <Pressable
+                  key={pr.id}
+                  onPress={() => setProjId(pr.id)}
+                  className={`mr-2 px-3 py-1.5 rounded-full border ${projId === pr.id ? "bg-slate-900 border-slate-900 dark:bg-slate-50 dark:border-slate-50" : "border-slate-300 dark:border-slate-700"}`}
+                >
+                  <Text className={`text-xs font-medium ${projId === pr.id ? "text-white dark:text-slate-900" : "text-slate-600 dark:text-slate-400"}`}>
+                    {pr.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+
+          <Text className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">SCOPE</Text>
 
           {(["Expense", "Income", "Both"] as Scope[]).map((s) => (
             <SelectCard

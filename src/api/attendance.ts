@@ -42,9 +42,10 @@ export const attendanceApi = {
   /**
    * Fetch all pending attendance for all projects (Contractor action)
    */
-  async getPendingAttendance() {
+  async getPendingAttendance(projectId?: string) {
     try {
-      const json = await apiFetch(`/api/attendance`);
+      const qs = projectId ? `?projectId=${projectId}` : "";
+      const json = await apiFetch(`/api/attendance${qs}`);
       return { data: json.data, error: null };
     } catch (error) {
       return { data: null, error };

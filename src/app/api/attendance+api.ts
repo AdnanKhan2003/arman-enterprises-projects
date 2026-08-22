@@ -27,7 +27,8 @@ export async function GET(request: Request) {
     .where(
       and(
         eq(projects.contractorId, userId),
-        eq(attendance.approvalStatus, "Pending")
+        eq(attendance.approvalStatus, "Pending"),
+        ...(projectId ? [eq(attendance.projectId, projectId)] : [])
       )
     )
     .orderBy(desc(attendance.workDate));

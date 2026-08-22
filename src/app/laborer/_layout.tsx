@@ -21,15 +21,15 @@ export default function LaborerTabsLayout() {
       <Tabs.Screen
         name="projects"
         options={{
-          title: "Projects",
+          title: "My Jobs",
           tabBarIcon: ({ color, size }) => <Ionicons name="briefcase-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
+          title: "History",
+          tabBarIcon: ({ color, size }) => <Ionicons name="time-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen

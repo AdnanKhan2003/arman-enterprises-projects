@@ -215,6 +215,7 @@ export const ledgerInvoices = pgTable("ledger_invoices", {
   contractorId: text("contractor_id")
     .references(() => users.id)
     .notNull(),
+  projectId: uuid("project_id").references(() => projects.id),
   title: text("title"),
   scope: ledgerInvoiceScopeEnum("scope").notNull(),
   format: ledgerInvoiceFormatEnum("format").notNull(),
