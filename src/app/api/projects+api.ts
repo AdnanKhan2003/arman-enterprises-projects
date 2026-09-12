@@ -79,28 +79,32 @@ export async function POST(request: Request) {
   const { contractor_id, laborer_ids, ...data } = body;
 
   try {
-    const newProject = await db
-      .insert(projects)
-      .values({
-        name: data.name,
-        description: data.description,
-        location: data.location,
-        clientId: data.client_id || null,
-        contractorId: session.user.id,
-      })
-      .returning();
+    const newProject = await db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(projects)
+        .values({
+          name: data.name,
+          description: data.description,
+          location: data.location,
+          clientId: data.client_id || null,
+          contractorId: session.user.id,
+        })
+        .returning();
 
-    const projectId = newProject[0].id;
+      const projectId = inserted[0].id;
 
-    if (laborer_ids && Array.isArray(laborer_ids) && laborer_ids.length > 0) {
-      const assignments = laborer_ids.map((laborerId: string) => ({
-        projectId,
-        laborerId,
-      }));
-      await db.insert(projectAssignments).values(assignments);
-    }
+      if (laborer_ids && Array.isArray(laborer_ids) && laborer_ids.length > 0) {
+        const assignments = laborer_ids.map((laborerId: string) => ({
+          projectId,
+          laborerId,
+        }));
+        await tx.insert(projectAssignments).values(assignments);
+      }
 
-    return Response.json({ data: newProject[0] });
+      return inserted[0];
+    });
+
+    return Response.json({ data: newProject });
   } catch (error) {
     console.error("Error creating project:", error);
     return new Response("Internal Server Error", { status: 500 });
@@ -130,49 +134,57 @@ export async function PATCH(request: Request) {
       return new Response("Missing required fields", { status: 400 });
     }
 
-    // Ensure the project belongs to this contractor
-    const existing = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.contractorId, session.user.id)))
-      .limit(1);
+    const updated = await db.transaction(async (tx) => {
+      // Ensure the project belongs to this contractor
+      const existing = await tx
+        .select()
+        .from(projects)
+        .where(and(eq(projects.id, id), eq(projects.contractorId, session.user.id)))
+        .limit(1);
 
-    if (!existing.length) {
+      if (!existing.length) {
+        return null;
+      }
+
+      const res = await tx
+        .update(projects)
+        .set(
+          statusOnly
+            ? { status }
+            : {
+                name,
+                location,
+                description,
+                clientId: client_id || null,
+                ...(status !== undefined ? { status } : {}),
+              },
+        )
+        .where(eq(projects.id, id))
+        .returning();
+
+      // Update laborers
+      if (laborer_ids && Array.isArray(laborer_ids)) {
+        // 1. Delete existing assignments
+        await tx.delete(projectAssignments).where(eq(projectAssignments.projectId, id));
+        
+        // 2. Insert new ones
+        if (laborer_ids.length > 0) {
+          const assignments = laborer_ids.map((laborerId: string) => ({
+            projectId: id,
+            laborerId,
+          }));
+          await tx.insert(projectAssignments).values(assignments);
+        }
+      }
+
+      return res[0];
+    });
+
+    if (!updated) {
       return new Response("Project not found", { status: 404 });
     }
 
-    const updated = await db
-      .update(projects)
-      .set(
-        statusOnly
-          ? { status }
-          : {
-              name,
-              location,
-              description,
-              clientId: client_id || null,
-              ...(status !== undefined ? { status } : {}),
-            },
-      )
-      .where(eq(projects.id, id))
-      .returning();
-
-    // Update laborers
-    if (laborer_ids && Array.isArray(laborer_ids)) {
-      // 1. Delete existing assignments
-      await db.delete(projectAssignments).where(eq(projectAssignments.projectId, id));
-      
-      // 2. Insert new ones
-      if (laborer_ids.length > 0) {
-        const assignments = laborer_ids.map((laborerId: string) => ({
-          projectId: id,
-          laborerId,
-        }));
-        await db.insert(projectAssignments).values(assignments);
-      }
-    }
-
-    return Response.json({ data: updated[0] });
+    return Response.json({ data: updated });
   } catch (error) {
     console.error("Error updating project:", error);
     return new Response("Internal Server Error", { status: 500 });
@@ -195,25 +207,33 @@ export async function DELETE(request: Request) {
       return new Response("Missing project ID", { status: 400 });
     }
 
-    // Ensure the project belongs to this contractor
-    const existing = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.contractorId, session.user.id)))
-      .limit(1);
+    const deleted = await db.transaction(async (tx) => {
+      // Ensure the project belongs to this contractor
+      const existing = await tx
+        .select()
+        .from(projects)
+        .where(and(eq(projects.id, id), eq(projects.contractorId, session.user.id)))
+        .limit(1);
 
-    if (!existing.length) {
+      if (!existing.length) {
+        return false;
+      }
+
+      // Financial records outlive the project they were tagged with: unlink them
+      // so the money history survives. Attendance and assignments have no meaning
+      // outside the project, so they go with it.
+      await tx.update(payments).set({ projectId: null }).where(eq(payments.projectId, id));
+      await tx.update(ledgerInvoices).set({ projectId: null }).where(eq(ledgerInvoices.projectId, id));
+      await tx.delete(attendance).where(eq(attendance.projectId, id));
+      await tx.delete(projectAssignments).where(eq(projectAssignments.projectId, id));
+      await tx.delete(projects).where(eq(projects.id, id));
+
+      return true;
+    });
+
+    if (!deleted) {
       return new Response("Project not found", { status: 404 });
     }
-
-    // Financial records outlive the project they were tagged with: unlink them
-    // so the money history survives. Attendance and assignments have no meaning
-    // outside the project, so they go with it.
-    await db.update(payments).set({ projectId: null }).where(eq(payments.projectId, id));
-    await db.update(ledgerInvoices).set({ projectId: null }).where(eq(ledgerInvoices.projectId, id));
-    await db.delete(attendance).where(eq(attendance.projectId, id));
-    await db.delete(projectAssignments).where(eq(projectAssignments.projectId, id));
-    await db.delete(projects).where(eq(projects.id, id));
 
     return Response.json({ success: true });
   } catch (error) {

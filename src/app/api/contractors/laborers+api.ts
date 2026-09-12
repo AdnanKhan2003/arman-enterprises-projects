@@ -109,24 +109,37 @@ export async function DELETE(req: Request) {
       return new Response("Missing laborer ID", { status: 400 });
     }
 
-    // Ensure the user being deleted is actually a laborer
-    const userToDelete = await db.select().from(users).where(and(eq(users.id, id), eq(users.role, "laborer"))).limit(1);
-    if (!userToDelete.length) {
+    const deleted = await db.transaction(async (tx) => {
+      // Ensure the user being deleted is actually a laborer
+      const userToDelete = await tx
+        .select()
+        .from(users)
+        .where(and(eq(users.id, id), eq(users.role, "laborer")))
+        .limit(1);
+
+      if (!userToDelete.length) {
+        return false;
+      }
+
+      // Perform Cascading Delete
+      // 1. Delete dependent app records
+      await tx.delete(attendance).where(eq(attendance.laborerId, id));
+      await tx.delete(projectAssignments).where(eq(projectAssignments.laborerId, id));
+      await tx.delete(payments).where(or(eq(payments.fromId, id), eq(payments.toId, id)));
+
+      // 2. Delete auth dependency records
+      await tx.delete(sessions).where(eq(sessions.userId, id));
+      await tx.delete(accounts).where(eq(accounts.userId, id));
+
+      // 3. Finally delete the user
+      await tx.delete(users).where(eq(users.id, id));
+
+      return true;
+    });
+
+    if (!deleted) {
       return new Response("Laborer not found", { status: 404 });
     }
-
-    // Perform Cascading Delete
-    // 1. Delete dependent app records
-    await db.delete(attendance).where(eq(attendance.laborerId, id));
-    await db.delete(projectAssignments).where(eq(projectAssignments.laborerId, id));
-    await db.delete(payments).where(or(eq(payments.fromId, id), eq(payments.toId, id)));
-
-    // 2. Delete auth dependency records
-    await db.delete(sessions).where(eq(sessions.userId, id));
-    await db.delete(accounts).where(eq(accounts.userId, id));
-
-    // 3. Finally delete the user
-    await db.delete(users).where(eq(users.id, id));
 
     return Response.json({ success: true });
   } catch (error) {
