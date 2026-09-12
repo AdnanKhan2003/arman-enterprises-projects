@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { View, ScrollView, RefreshControl, Modal, useColorScheme, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
@@ -19,9 +20,7 @@ export default function LaborersScreen() {
   const isDark = colorScheme === "dark";
   const { data: session } = authClient.useSession();
   const router = useRouter();
-  
-  const [laborers, setLaborers] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -33,109 +32,104 @@ export default function LaborersScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [creating, setCreating] = useState(false);
 
-  const fetchData = async () => {
-    if (!session?.user?.id) return;
-    try {
+  const { data: laborers = [], isRefetching, refetch } = useQuery({
+    queryKey: ["laborers"],
+    queryFn: async () => {
       const res: any = await apiClient.get("/api/contractors/laborers");
-      if (res.laborers) setLaborers(res.laborers);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+      return res.laborers || [];
+    },
+    enabled: !!session?.user?.id,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [session?.user?.id]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
-
-  const handleCreateLaborer = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) return;
-    
-    setCreating(true);
-    try {
-      const parsed = CreateLaborerSchema.parse({ name, email, password });
-      await apiClient.post("/api/contractors/laborers", parsed);
-      
+  const createMutation = useMutation({
+    mutationFn: async (payload: { name: string; email: string; password: string }) => {
+      const parsed = CreateLaborerSchema.parse(payload);
+      return apiClient.post("/api/contractors/laborers", parsed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["laborers"] });
       Toast.show({
         type: "success",
         text1: "Success",
-        text2: "Laborer account created successfully!"
+        text2: "Laborer account created successfully!",
       });
-      
       setName("");
       setEmail("");
       setPassword("");
       setModalVisible(false);
-      await fetchData();
-    } catch (e: any) {
+    },
+    onError: (e: any) => {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: e.message || "Failed to create laborer account"
+        text2: e.message || "Failed to create laborer account",
       });
-    } finally {
-      setCreating(false);
-    }
-  };
+    },
+  });
 
-  const handleUpdateLaborer = async () => {
-    if (!name.trim() || !editingLaborerId) return;
-    
-    setCreating(true);
-    try {
-      const parsed = UpdateLaborerSchema.parse({ id: editingLaborerId, name });
-      await apiClient.patch("/api/contractors/laborers", parsed);
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const parsed = UpdateLaborerSchema.parse({ id, name });
+      return apiClient.patch("/api/contractors/laborers", parsed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["laborers"] });
       Toast.show({
         type: "success",
         text1: "Success",
-        text2: "Laborer updated successfully"
+        text2: "Laborer updated successfully",
       });
       setEditModalVisible(false);
       setName("");
       setEditingLaborerId(null);
-      await fetchData();
-    } catch (e: any) {
+    },
+    onError: (e: any) => {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: e.message || "Failed to update laborer"
+        text2: e.message || "Failed to update laborer",
       });
-    } finally {
-      setCreating(false);
-    }
-  };
+    },
+  });
 
-  const confirmDeleteLaborer = async () => {
-    if (!laborerToDelete) return;
-    
-    setCreating(true);
-    try {
-      const parsed = DeleteLaborerSchema.parse({ id: laborerToDelete.id });
-      await apiClient.delete(`/api/contractors/laborers?id=${parsed.id}`);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const parsed = DeleteLaborerSchema.parse({ id });
+      return apiClient.delete(`/api/contractors/laborers?id=${parsed.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["laborers"] });
       Toast.show({
         type: "success",
         text1: "Success",
-        text2: "Laborer deleted successfully"
+        text2: "Laborer deleted successfully",
       });
       setDeleteModalVisible(false);
       setLaborerToDelete(null);
-      await fetchData();
-    } catch (e: any) {
+    },
+    onError: (e: any) => {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: e.message || "Failed to delete laborer"
+        text2: e.message || "Failed to delete laborer",
       });
-    } finally {
-      setCreating(false);
-    }
+    },
+  });
+
+  const handleCreateLaborer = () => {
+    if (!name.trim() || !email.trim() || !password.trim()) return;
+    createMutation.mutate({ name, email, password });
+  };
+
+  const handleUpdateLaborer = () => {
+    if (!name.trim() || !editingLaborerId) return;
+    updateMutation.mutate({ id: editingLaborerId, name });
+  };
+
+  const confirmDeleteLaborer = () => {
+    if (!laborerToDelete) return;
+    deleteMutation.mutate(laborerToDelete.id);
   };
 
   return (
@@ -161,7 +155,7 @@ export default function LaborersScreen() {
 
       <ScrollView 
         className="flex-1 px-5"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
       >
         <View className="pb-10">
           {laborers.length === 0 ? (
@@ -172,7 +166,7 @@ export default function LaborersScreen() {
               </Text>
             </View>
           ) : (
-            laborers.map((laborer) => (
+            laborers.map((laborer: any) => (
               <Card key={laborer.id}>
                 <View className="flex-row items-center gap-3">
                   <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center">
@@ -247,7 +241,7 @@ export default function LaborersScreen() {
 
         <View className="flex-row mt-6 gap-3">
           <Button title="Cancel" variant="outline" onPress={() => setModalVisible(false)} className="flex-1" />
-          <Button title="Create" onPress={handleCreateLaborer} loading={creating} className="flex-1" />
+          <Button title="Create" onPress={handleCreateLaborer} loading={createMutation.isPending} className="flex-1" />
         </View>
       </CustomModal>
 
@@ -264,7 +258,7 @@ export default function LaborersScreen() {
         />
         <View className="flex-row mt-6 gap-3">
           <Button title="Cancel" variant="outline" onPress={() => setEditModalVisible(false)} className="flex-1" />
-          <Button title="Save Changes" onPress={handleUpdateLaborer} loading={creating} className="flex-1" />
+          <Button title="Save Changes" onPress={handleUpdateLaborer} loading={updateMutation.isPending} className="flex-1" />
         </View>
       </CustomModal>
 
@@ -284,15 +278,15 @@ export default function LaborersScreen() {
             variant="outline" 
             onPress={() => setDeleteModalVisible(false)} 
             className="flex-1" 
-            disabled={creating}
+            disabled={deleteMutation.isPending}
           />
           <Pressable 
-            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
+            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${deleteMutation.isPending ? "opacity-60" : ""}`}
             onPress={confirmDeleteLaborer}
-            disabled={creating}
+            disabled={deleteMutation.isPending}
           >
             <Text className="text-[15px] font-semibold text-white">
-              {creating ? "Deleting..." : "Delete"}
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Text>
           </Pressable>
         </View>

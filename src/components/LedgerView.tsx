@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import { View, ScrollView, RefreshControl, useColorScheme, Pressable, Alert } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { Screen } from "./ui/Screen";
@@ -53,34 +54,36 @@ type Props = {
 export function LedgerView({ projectId, projectName, embedded = false }: Props) {
   const isDark = useColorScheme() === "dark";
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   const contractorName = session?.user?.name || "Contractor";
 
-  const [invoices, setInvoices] = useState<LedgerInvoice[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab>("All");
   const [projectFilter, setProjectFilter] = useState<"all" | "general">("all");
   const [menuFor, setMenuFor] = useState<LedgerInvoice | null>(null);
 
-  const fetchData = async () => {
-    try {
+  const { data: invoices = [], refetch, isRefetching } = useQuery<LedgerInvoice[]>({
+    queryKey: ["ledger-invoices", projectId || "all"],
+    queryFn: async () => {
       const res: any = await apiClient.get(`/api/ledger-invoices${projectId ? `?projectId=${projectId}` : ""}`);
-      const data = res.data?.items || res.data || [];
-      setInvoices(data);
-    } catch {}
-  };
+      return res.data?.items || res.data || [];
+    },
+    enabled: !!session,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [session, projectId]),
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiClient.delete(`/api/ledger-invoices?id=${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ledger-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["project-header-stats"] });
+      Toast.show({ type: "success", text1: "Deleted" });
+    },
+    onError: () => {
+      Toast.show({ type: "error", text1: "Delete failed" });
+    },
+  });
 
   const scoped = projectId || projectFilter === "all" ? invoices : invoices.filter((s) => !s.projectId);
   const allItems = scoped.flatMap((s) => s.items || []);
@@ -144,14 +147,8 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
       {
         text: "Delete",
         style: "destructive",
-        onPress: async () => {
-          try {
-            await apiClient.delete(`/api/ledger-invoices?id=${s.id}`);
-            setInvoices((prev) => prev.filter((x) => x.id !== s.id));
-            Toast.show({ type: "success", text1: "Deleted" });
-          } catch {
-            Toast.show({ type: "error", text1: "Delete failed" });
-          }
+        onPress: () => {
+          deleteInvoiceMutation.mutate(s.id);
         },
       },
     ]);
@@ -162,7 +159,7 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
       <ScrollView
         contentContainerClassName="px-5 pb-10 mt-2"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
         }
       >
         <View className="flex-row gap-2 mb-5">

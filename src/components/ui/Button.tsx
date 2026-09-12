@@ -37,9 +37,9 @@ export function Button({ style, className, title, variant = "primary", loading =
 
   const getIndicatorColor = () => {
     if (variant === "primary") {
-      return isDark ? "#0f172a" : "#f8fafc"; // slate-900 on dark (light bg), slate-50 on light (dark bg)
+      return isDark ? "#0f172a" : "#f8fafc";
     }
-    return isDark ? "#f8fafc" : "#0f172a"; // reverse for outline/secondary
+    return isDark ? "#f8fafc" : "#0f172a";
   };
 
   return (

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
@@ -19,15 +20,12 @@ export default function ContactsScreen() {
   const isDark = colorScheme === "dark";
   const { data: session } = authClient.useSession();
   const router = useRouter();
-  
-  const [clients, setClients] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"clients" | "vendors">("clients");
+  const queryClient = useQueryClient();
 
+  const [activeTab, setActiveTab] = useState<"clients" | "vendors">("clients");
   const [contactModalVisible, setContactModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [contactToDelete, setContactToDelete] = useState<{id: string, type: "client" | "vendor"} | null>(null);
+  const [contactToDelete, setContactToDelete] = useState<{ id: string; type: "client" | "vendor" } | null>(null);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactName, setContactName] = useState("");
   const [contactAddress, setContactAddress] = useState("");
@@ -35,28 +33,88 @@ export default function ContactsScreen() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactVendorType, setContactVendorType] = useState("");
   const [contactType, setContactType] = useState<"client" | "vendor">("client");
-  const [creating, setCreating] = useState(false);
 
-  const fetchData = async () => {
-    if (!session?.user?.id) return;
-    try {
+  const { data: contactsData, isRefetching, refetch } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: async () => {
       const res: any = await apiClient.get("/api/contacts");
-      if (res.clients) setClients(res.clients);
-      if (res.vendors) setVendors(res.vendors);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+      return {
+        clients: res.clients || [],
+        vendors: res.vendors || [],
+      };
+    },
+    enabled: !!session?.user?.id,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [session?.user?.id]);
+  const clients = contactsData?.clients || [];
+  const vendors = contactsData?.vendors || [];
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
+  const createMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const parsed = CreateContactSchema.parse(payload);
+      return apiClient.post("/api/contacts", parsed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      setContactName("");
+      setContactAddress("");
+      setContactPhone("");
+      setContactEmail("");
+      setContactVendorType("");
+      setEditingContactId(null);
+      setContactModalVisible(false);
+    },
+    onError: (e: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to save contact",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const parsed = UpdateContactSchema.parse(payload);
+      return apiClient.patch("/api/contacts", parsed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      setContactName("");
+      setContactAddress("");
+      setContactPhone("");
+      setContactEmail("");
+      setContactVendorType("");
+      setEditingContactId(null);
+      setContactModalVisible(false);
+    },
+    onError: (e: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to save contact",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id, type }: { id: string; type: "client" | "vendor" }) => {
+      const parsed = DeleteContactSchema.parse({ id, type });
+      return apiClient.delete(`/api/contacts?id=${parsed.id}&type=${parsed.type}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      setDeleteModalVisible(false);
+      setContactToDelete(null);
+    },
+    onError: (e: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to delete contact",
+      });
+    },
+  });
 
   const openEditModal = (contact: any, type: "client" | "vendor") => {
     setContactType(type);
@@ -69,48 +127,27 @@ export default function ContactsScreen() {
     setContactModalVisible(true);
   };
 
-  const handleSaveContact = async () => {
+  const handleSaveContact = () => {
     if (!contactName.trim() || !session?.user?.id) return;
-    setCreating(true);
-    try {
-      if (editingContactId) {
-        const parsed = UpdateContactSchema.parse({
-          id: editingContactId,
-          type: contactType,
-          name: contactName,
-          address: contactAddress,
-          vendor_type: contactType === "vendor" ? contactVendorType : undefined,
-          phone: contactPhone,
-          email: contactEmail,
-        });
-        await apiClient.patch("/api/contacts", parsed);
-      } else {
-        const parsed = CreateContactSchema.parse({
-          type: contactType,
-          name: contactName,
-          address: contactAddress,
-          vendor_type: contactType === "vendor" ? contactVendorType : undefined,
-          phone: contactPhone,
-          email: contactEmail,
-        });
-        await apiClient.post("/api/contacts", parsed);
-      }
-      setContactName("");
-      setContactAddress("");
-      setContactPhone("");
-      setContactEmail("");
-      setContactVendorType("");
-      setEditingContactId(null);
-      setContactModalVisible(false);
-      await fetchData();
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: e.message || "Failed to save contact"
+    if (editingContactId) {
+      updateMutation.mutate({
+        id: editingContactId,
+        type: contactType,
+        name: contactName,
+        address: contactAddress,
+        vendor_type: contactType === "vendor" ? contactVendorType : undefined,
+        phone: contactPhone,
+        email: contactEmail,
       });
-    } finally {
-      setCreating(false);
+    } else {
+      createMutation.mutate({
+        type: contactType,
+        name: contactName,
+        address: contactAddress,
+        vendor_type: contactType === "vendor" ? contactVendorType : undefined,
+        phone: contactPhone,
+        email: contactEmail,
+      });
     }
   };
 
@@ -119,30 +156,13 @@ export default function ContactsScreen() {
     setDeleteModalVisible(true);
   };
 
-  const confirmDeleteContact = async () => {
+  const confirmDeleteContact = () => {
     if (!contactToDelete) return;
-    setCreating(true);
-    try {
-      const parsed = DeleteContactSchema.parse({
-        id: contactToDelete.id,
-        type: contactToDelete.type,
-      });
-      await apiClient.delete(`/api/contacts?id=${parsed.id}&type=${parsed.type}`);
-      await fetchData();
-      setDeleteModalVisible(false);
-      setContactToDelete(null);
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: e.message || "Failed to delete contact"
-      });
-    } finally {
-      setCreating(false);
-    }
+    deleteMutation.mutate(contactToDelete);
   };
 
   const activeData = activeTab === "clients" ? clients : vendors;
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
     <Screen>
@@ -165,7 +185,7 @@ export default function ContactsScreen() {
 
       <ScrollView 
         contentContainerClassName="px-5 pb-20"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
       >
         <View className="flex-row justify-between items-center mb-3">
           <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50">
@@ -190,7 +210,7 @@ export default function ContactsScreen() {
             No {activeTab} added yet. Tap the + to add one.
           </Text>
         ) : (
-          activeData.map(contact => (
+          activeData.map((contact: any) => (
             <Card key={contact.id}>
               <View className="flex-row items-center gap-3">
                 <View className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full items-center justify-center">
@@ -260,7 +280,7 @@ export default function ContactsScreen() {
         )}
         <View className="flex-row mt-6 gap-3">
           <Button title="Cancel" variant="outline" onPress={() => setContactModalVisible(false)} className="flex-1" />
-          <Button title={editingContactId ? "Save Changes" : "Create"} onPress={handleSaveContact} loading={creating} className="flex-1" />
+          <Button title={editingContactId ? "Save Changes" : "Create"} onPress={handleSaveContact} loading={isSaving} className="flex-1" />
         </View>
       </CustomModal>
 
@@ -280,15 +300,15 @@ export default function ContactsScreen() {
             variant="outline" 
             onPress={() => setDeleteModalVisible(false)} 
             className="flex-1" 
-            disabled={creating}
+            disabled={deleteMutation.isPending}
           />
           <Pressable 
-            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
+            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${deleteMutation.isPending ? "opacity-60" : ""}`}
             onPress={confirmDeleteContact}
-            disabled={creating}
+            disabled={deleteMutation.isPending}
           >
             <Text className="text-[15px] font-semibold text-white">
-              {creating ? "Deleting..." : "Delete"}
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Text>
           </Pressable>
         </View>

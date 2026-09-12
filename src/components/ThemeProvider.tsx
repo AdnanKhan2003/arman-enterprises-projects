@@ -9,11 +9,10 @@ const themes = {
     "--color-primary": "37 99 235",
   } as const,
   dark: {
-    // Dark Mode (RGB values)
-    "--color-background": "17 24 39", // gray-900
-    "--color-foreground": "255 255 255", // white
-    "--color-card": "31 41 55", // gray-800
-    "--color-primary": "59 130 246", // blue-500
+    "--color-background": "17 24 39",
+    "--color-foreground": "255 255 255",
+    "--color-card": "31 41 55",
+    "--color-primary": "59 130 246",
   } as const,
 };
 

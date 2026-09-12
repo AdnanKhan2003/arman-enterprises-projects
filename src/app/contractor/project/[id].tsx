@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from "react";
-import { View, ScrollView, useColorScheme, Pressable } from "react-native";
-import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useState } from "react";
+import { View, useColorScheme, Pressable } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../../components/ui/Screen";
 import { Text } from "../../../components/ui/Text";
@@ -25,21 +26,25 @@ export default function ProjectDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const projectId = String(params.id);
 
-  const [project, setProject] = useState<any>(null);
   const [pane, setPane] = useState<Pane>("timesheet");
-  const [stats, setStats] = useState({ pending: 0, ledgerNet: 0, cashNet: 0 });
 
-  const fetchHeader = async () => {
-    try {
-      const [projRes, pendRes, ledgerRes, payRes]: any = await Promise.all([
-        apiClient.get("/api/projects"),
+  const { data: project } = useQuery({
+    queryKey: ["projects", projectId],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/projects");
+      return (res.data || []).find((p: any) => p.id === projectId) || null;
+    },
+    enabled: !!projectId,
+  });
+
+  const { data: stats = { pending: 0, ledgerNet: 0, cashNet: 0 } } = useQuery({
+    queryKey: ["project-header-stats", projectId],
+    queryFn: async () => {
+      const [pendRes, ledgerRes, payRes]: any = await Promise.all([
         apiClient.get(`/api/attendance?projectId=${projectId}`),
         apiClient.get(`/api/ledger-invoices?projectId=${projectId}`),
         apiClient.get("/api/payments"),
       ]);
-
-      const found = (projRes.data || []).find((p: any) => p.id === projectId);
-      if (found) setProject(found);
 
       const items = (ledgerRes.data?.data || ledgerRes.data || []).flatMap((s: any) => s.items || []);
       const income = items
@@ -54,21 +59,14 @@ export default function ProjectDetailScreen() {
 
       const pendingList = (pendRes.data || []).filter((a: any) => a.status === "Pending" || a.status === "pending");
 
-      setStats({
+      return {
         pending: pendingList.length,
         ledgerNet: income - expense,
         cashNet: cashIn,
-      });
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchHeader();
-    }, [projectId]),
-  );
+      };
+    },
+    enabled: !!projectId,
+  });
 
   return (
     <Screen>

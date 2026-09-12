@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React from "react";
 import { View, ScrollView, RefreshControl, useColorScheme } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
@@ -13,68 +13,59 @@ import { MarkAttendanceSchema } from "../../schemas";
 
 export default function LaborerProjectsScreen() {
   const isDark = useColorScheme() === "dark";
+  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
-  const [projects, setProjects] = useState<any[]>([]);
-  const [attendance, setAttendance] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
+  const { data: projects = [], isLoading: isLoadingProjects, refetch: refetchProjects, isRefetching: isRefetchingProjects } = useQuery<any[]>({
+    queryKey: ["laborer-projects", session?.user?.id],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/projects");
+      return res.data ? res.data.map((r: any) => r.projects || r) : [];
+    },
+    enabled: !!session?.user?.id,
+  });
 
-  const fetchData = async () => {
-    if (!session?.user?.id) return;
-    try {
-      const [projectsRes, attendanceRes]: any = await Promise.all([
-        apiClient.get("/api/projects"),
-        apiClient.get("/api/attendance"),
-      ]);
-      if (projectsRes.data) {
-        setProjects(projectsRes.data.map((r: any) => r.projects || r));
-      }
-      const attendanceList = attendanceRes.data?.data || attendanceRes.data || [];
-      setAttendance(attendanceList);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const { data: attendance = [], isLoading: isLoadingAttendance, refetch: refetchAttendance, isRefetching: isRefetchingAttendance } = useQuery<any[]>({
+    queryKey: ["laborer-attendance", session?.user?.id],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/attendance");
+      return res.data?.data || res.data || [];
+    },
+    enabled: !!session?.user?.id,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [session?.user?.id]),
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
-
-  const handleClockAction = async (projectId: string, action: "check_in" | "check_out") => {
-    if (!session?.user?.id) return;
-    setLoadingProjectId(projectId);
-    const today = new Date().toISOString().split("T")[0];
-    try {
+  const clockMutation = useMutation({
+    mutationFn: async ({ projectId, action }: { projectId: string; action: "check_in" | "check_out" }) => {
+      const today = new Date().toISOString().split("T")[0];
       const parsed = MarkAttendanceSchema.parse({
         project_id: projectId,
         work_date: today,
         action,
       });
-      await apiClient.post("/api/attendance", parsed);
+      return await apiClient.post("/api/attendance", parsed);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["laborer-attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["laborer-history"] });
       Toast.show({
         type: "success",
         text1: "Success",
-        text2: `Successfully ${action === "check_in" ? "clocked in" : "clocked out"}!`,
+        text2: `Successfully ${variables.action === "check_in" ? "clocked in" : "clocked out"}!`,
       });
-      await fetchData();
-    } catch (e: any) {
+    },
+    onError: (e: any, variables) => {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: e.message || `Could not ${action === "check_in" ? "clock in" : "clock out"}.`,
+        text2: e?.message || `Could not ${variables.action === "check_in" ? "clock in" : "clock out"}.`,
       });
-    } finally {
-      setLoadingProjectId(null);
-    }
+    },
+  });
+
+  const isRefreshing = isRefetchingProjects || isRefetchingAttendance;
+
+  const onRefresh = async () => {
+    await Promise.all([refetchProjects(), refetchAttendance()]);
   };
 
   return (
@@ -86,7 +77,7 @@ export default function LaborerProjectsScreen() {
 
       <ScrollView
         contentContainerClassName="px-5 pb-10"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
       >
         <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Assigned Projects</Text>
 
@@ -107,13 +98,24 @@ export default function LaborerProjectsScreen() {
 
                   if (!todayRecord) {
                     return (
-                      <Button title="Clock In" onPress={() => handleClockAction(p.id, "check_in")} loading={loadingProjectId === p.id} className="py-2 px-4" />
+                      <Button
+                        title="Clock In"
+                        onPress={() => clockMutation.mutate({ projectId: p.id, action: "check_in" })}
+                        loading={clockMutation.isPending && clockMutation.variables?.projectId === p.id}
+                        className="py-2 px-4"
+                      />
                     );
                   } else if (todayRecord && !todayRecord.checkOutTime) {
                     return (
                       <View className="items-end gap-1">
                         <Text className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">✓ CLOCKED IN</Text>
-                        <Button title="Clock Out" variant="outline" onPress={() => handleClockAction(p.id, "check_out")} loading={loadingProjectId === p.id} className="py-1 px-3 border-emerald-500" />
+                        <Button
+                          title="Clock Out"
+                          variant="outline"
+                          onPress={() => clockMutation.mutate({ projectId: p.id, action: "check_out" })}
+                          loading={clockMutation.isPending && clockMutation.variables?.projectId === p.id}
+                          className="py-1 px-3 border-emerald-500"
+                        />
                       </View>
                     );
                   } else {

@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React from "react";
 import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
@@ -13,31 +13,14 @@ export default function LaborerDashboard() {
   const isDark = useColorScheme() === "dark";
   const { data: session } = authClient.useSession();
 
-  const [attendance, setAttendance] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchData = async () => {
-    if (!session?.user?.id) return;
-    try {
+  const { data: attendance = [], refetch, isRefetching } = useQuery<any[]>({
+    queryKey: ["laborer-history", session?.user?.id],
+    queryFn: async () => {
       const res: any = await apiClient.get("/api/attendance");
-      const attendanceList = res.data?.data || res.data || [];
-      setAttendance(attendanceList);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [session?.user?.id]),
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
+      return res.data?.data || res.data || [];
+    },
+    enabled: !!session?.user?.id,
+  });
 
   return (
     <Screen>
@@ -56,7 +39,7 @@ export default function LaborerDashboard() {
 
       <ScrollView
         contentContainerClassName="px-5 pb-10"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
       >
         <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Recent Activity</Text>
 

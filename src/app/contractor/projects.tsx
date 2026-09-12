@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
@@ -9,6 +10,7 @@ import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { authClient } from "../../lib/auth-client";
 import { apiClient } from "../../lib/http-client";
+import { CreateProjectSchema, UpdateProjectSchema, DeleteProjectSchema } from "../../schemas";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
@@ -16,19 +18,11 @@ import Toast from "react-native-toast-message";
 export default function ProjectsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-
   const { data: session } = authClient.useSession();
-
-  const [projects, setProjects] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [laborers, setLaborers] = useState<any[]>([]);
-  
   const router = useRouter();
-  const [pendingByProject, setPendingByProject] = useState<Record<string, number>>({});
-  const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
-  const [refreshing, setRefreshing] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
 
+  const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -38,43 +32,159 @@ export default function ProjectsScreen() {
   const [projectDescription, setProjectDescription] = useState("");
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
-
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedLaborerIds, setSelectedLaborerIds] = useState<string[]>([]);
 
-  const fetchData = async () => {
-    if (!session?.user?.id) return;
-    try {
-      const [projectsRes, contactsRes, laborersRes, pendingRes]: any = await Promise.all([
-        apiClient.get("/api/projects"),
-        apiClient.get("/api/contacts"),
-        apiClient.get("/api/contractors/laborers"),
-        apiClient.get("/api/attendance"),
-      ]);
+  const { data: projects = [], isRefetching: isRefetchingProjects, refetch: refetchProjects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/projects");
+      return res.data || [];
+    },
+    enabled: !!session?.user?.id,
+  });
 
-      if (projectsRes.data) setProjects(projectsRes.data);
+  const { data: contactsData } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/contacts");
+      return res.clients || [];
+    },
+    enabled: !!session?.user?.id,
+  });
+  const clients = contactsData || [];
 
-      const counts: Record<string, number> = {};
-      const pendingItems = pendingRes.data?.items || pendingRes.data || [];
-      for (const rec of pendingItems) {
-        counts[rec.projectId] = (counts[rec.projectId] || 0) + 1;
+  const { data: laborersData } = useQuery({
+    queryKey: ["laborers"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/contractors/laborers");
+      return res.laborers || [];
+    },
+    enabled: !!session?.user?.id,
+  });
+  const laborers = laborersData || [];
+
+  const { data: attendanceData } = useQuery({
+    queryKey: ["attendance"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/attendance");
+      return res.data?.items || res.data || [];
+    },
+    enabled: !!session?.user?.id,
+  });
+
+  const pendingByProject: Record<string, number> = {};
+  if (Array.isArray(attendanceData)) {
+    for (const rec of attendanceData) {
+      if (rec.projectId) {
+        pendingByProject[rec.projectId] = (pendingByProject[rec.projectId] || 0) + 1;
       }
-      setPendingByProject(counts);
-      if (contactsRes.data?.clients) setClients(contactsRes.data.clients);
-      if (laborersRes.data?.laborers) setLaborers(laborersRes.data.laborers);
-    } catch (e) {
-      console.error(e);
     }
-  };
+  }
 
-  useEffect(() => {
-    fetchData();
-  }, [session]);
+  const createMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const parsed = CreateProjectSchema.parse(payload);
+      return apiClient.post("/api/projects", parsed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: "Project created successfully",
+      });
+      setModalVisible(false);
+      setProjectName("");
+      setProjectLocation("");
+      setProjectDescription("");
+      setSelectedClientId(null);
+      setSelectedLaborerIds([]);
+    },
+    onError: (e: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to create project",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const parsed = UpdateProjectSchema.parse(payload);
+      return apiClient.patch("/api/projects", parsed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: "Project updated successfully",
+      });
+      setEditModalVisible(false);
+      setProjectName("");
+      setProjectLocation("");
+      setProjectDescription("");
+      setEditingProjectId(null);
+      setSelectedClientId(null);
+      setSelectedLaborerIds([]);
+    },
+    onError: (e: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to update project",
+      });
+    },
+  });
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "active" | "completed" }) => {
+      const parsed = UpdateProjectSchema.parse({ id, status });
+      return apiClient.patch("/api/projects", parsed);
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      Toast.show({
+        type: "success",
+        text1: vars.status === "completed" ? "Marked completed" : "Project reopened",
+      });
+    },
+    onError: () => {
+      Toast.show({ type: "error", text1: "Could not update project" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const parsed = DeleteProjectSchema.parse({ id });
+      return apiClient.delete(`/api/projects?id=${parsed.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: "Project deleted successfully",
+      });
+      setDeleteModalVisible(false);
+      setProjectToDelete(null);
+    },
+    onError: (e: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to delete project",
+      });
+    },
+  });
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
+    await Promise.all([
+      refetchProjects(),
+      queryClient.invalidateQueries({ queryKey: ["attendance"] }),
+    ]);
   };
 
   const toggleLaborer = (id: string) => {
@@ -108,138 +218,56 @@ export default function ProjectsScreen() {
     setDeleteModalVisible(true);
   };
 
-  const handleCreateProject = async () => {
+  const handleCreateProject = () => {
     if (!projectName.trim() || !session?.user?.id) return;
-    
-    setCreating(true);
-    try {
-      await apiClient.post("/api/projects", {
-        contractor_id: session.user.id,
-        name: projectName,
-        location: projectLocation,
-        description: projectDescription,
-        client_id: selectedClientId || undefined,
-        laborer_ids: selectedLaborerIds,
-      });
-
-      Toast.show({
-        type: "success",
-        text1: "Success",
-        text2: "Project created successfully",
-      });
-      setModalVisible(false);
-      setProjectName("");
-      setProjectLocation("");
-      setProjectDescription("");
-      setSelectedClientId(null);
-      setSelectedLaborerIds([]);
-      await fetchData();
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: e.message || "Failed to create project",
-      });
-    } finally {
-      setCreating(false);
-    }
+    createMutation.mutate({
+      name: projectName,
+      location: projectLocation,
+      description: projectDescription,
+      client_id: selectedClientId || undefined,
+      laborer_ids: selectedLaborerIds,
+    });
   };
 
-  const handleUpdateProject = async () => {
+  const handleUpdateProject = () => {
     if (!projectName.trim() || !editingProjectId) return;
-    
-    setCreating(true);
-    try {
-      await apiClient.patch("/api/projects", {
-        id: editingProjectId,
-        name: projectName,
-        location: projectLocation,
-        description: projectDescription,
-        client_id: selectedClientId || undefined,
-        laborer_ids: selectedLaborerIds,
-      });
-
-      Toast.show({
-        type: "success",
-        text1: "Success",
-        text2: "Project updated successfully",
-      });
-      setEditModalVisible(false);
-      setProjectName("");
-      setProjectLocation("");
-      setProjectDescription("");
-      setEditingProjectId(null);
-      setSelectedClientId(null);
-      setSelectedLaborerIds([]);
-      await fetchData();
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: e.message || "Failed to update project",
-      });
-    } finally {
-      setCreating(false);
-    }
+    updateMutation.mutate({
+      id: editingProjectId,
+      name: projectName,
+      location: projectLocation,
+      description: projectDescription,
+      client_id: selectedClientId || undefined,
+      laborer_ids: selectedLaborerIds,
+    });
   };
 
-  const toggleStatus = async (project: any) => {
+  const toggleStatus = (project: any) => {
     const next = project.status === "completed" ? "active" : "completed";
-    try {
-      await apiClient.patch("/api/projects", { id: project.id, status: next });
-      setProjects((prev) => prev.map((x) => (x.id === project.id ? { ...x, status: next } : x)));
-      Toast.show({
-        type: "success",
-        text1: next === "completed" ? "Marked completed" : "Project reopened",
-      });
-    } catch {
-      Toast.show({ type: "error", text1: "Could not update project" });
-    }
+    toggleStatusMutation.mutate({ id: project.id, status: next });
   };
 
-  const confirmDeleteProject = async () => {
+  const confirmDeleteProject = () => {
     if (!projectToDelete) return;
-    
-    setCreating(true);
-    try {
-      await apiClient.delete(`/api/projects?id=${projectToDelete.id}`);
-
-      Toast.show({
-        type: "success",
-        text1: "Success",
-        text2: "Project deleted successfully",
-      });
-      setDeleteModalVisible(false);
-      setProjectToDelete(null);
-      await fetchData();
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: e.message || "Failed to delete project",
-      });
-    } finally {
-      setCreating(false);
-    }
+    deleteMutation.mutate(projectToDelete.id);
   };
 
   const renderClientPills = () => (
     <View className="mb-4">
       <Text className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Assign Client (Optional)</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {clients.map(client => {
+        {clients.map((client: any) => {
           const isSelected = selectedClientId === client.id;
           return (
             <Pressable 
               key={client.id}
               onPress={() => setSelectedClientId(isSelected ? null : client.id)}
-              className={`px-4 py-2 rounded-full mr-2 border ${isSelected ? 'bg-blue-100 border-blue-500 dark:bg-blue-900/50' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}
+              className={`px-4 py-2 rounded-full mr-2 border ${isSelected ? "bg-blue-100 border-blue-500 dark:bg-blue-900/50" : "bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700"}`}
             >
-              <Text className={`${isSelected ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+              <Text className={`${isSelected ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-slate-700 dark:text-slate-300"}`}>
                 {client.name}
               </Text>
             </Pressable>
-          )
+          );
         })}
         {clients.length === 0 && <Text className="text-slate-500 italic">No clients available</Text>}
       </ScrollView>
@@ -250,24 +278,26 @@ export default function ProjectsScreen() {
     <View className="mb-2">
       <Text className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Assign Laborers (Optional)</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {laborers.map(laborer => {
+        {laborers.map((laborer: any) => {
           const isSelected = selectedLaborerIds.includes(laborer.id);
           return (
             <Pressable 
               key={laborer.id}
               onPress={() => toggleLaborer(laborer.id)}
-              className={`px-4 py-2 rounded-full mr-2 border ${isSelected ? 'bg-indigo-100 border-indigo-500 dark:bg-indigo-900/50' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}
+              className={`px-4 py-2 rounded-full mr-2 border ${isSelected ? "bg-indigo-100 border-indigo-500 dark:bg-indigo-900/50" : "bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700"}`}
             >
-              <Text className={`${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+              <Text className={`${isSelected ? "text-indigo-700 dark:text-indigo-300 font-semibold" : "text-slate-700 dark:text-slate-300"}`}>
                 {laborer.name}
               </Text>
             </Pressable>
-          )
+          );
         })}
         {laborers.length === 0 && <Text className="text-slate-500 italic">No laborers available</Text>}
       </ScrollView>
     </View>
   );
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
     <Screen>
@@ -305,7 +335,7 @@ export default function ProjectsScreen() {
 
       <ScrollView 
         contentContainerClassName="px-5 pb-10"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
+        refreshControl={<RefreshControl refreshing={isRefetchingProjects} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />}
       >
         {projects.length === 0 ? (
           <View className="items-center justify-center py-10">
@@ -316,9 +346,9 @@ export default function ProjectsScreen() {
           </View>
         ) : (
           projects
-            .filter((p) => statusFilter === "all" || p.status !== "completed")
-            .sort((a, b) => (a.status === "completed" ? 1 : 0) - (b.status === "completed" ? 1 : 0))
-            .map(p => (
+            .filter((p: any) => statusFilter === "all" || p.status !== "completed")
+            .sort((a: any, b: any) => (a.status === "completed" ? 1 : 0) - (b.status === "completed" ? 1 : 0))
+            .map((p: any) => (
             <Card key={p.id} className="mb-4">
               <View className="flex-row items-center justify-between">
                 <Pressable
@@ -341,7 +371,7 @@ export default function ProjectsScreen() {
                     {p.client ? <Text className="text-sm mt-1 text-slate-500 dark:text-slate-400">Client: {p.client.name}</Text> : null}
                     {p.laborerIds?.length > 0 ? (
                       <Text className="text-sm mt-1 text-indigo-500 dark:text-indigo-400 font-medium">
-                        {p.laborerIds.length} {p.laborerIds.length === 1 ? 'Laborer' : 'Laborers'} Assigned
+                        {p.laborerIds.length} {p.laborerIds.length === 1 ? "Laborer" : "Laborers"} Assigned
                       </Text>
                     ) : null}
                     {pendingByProject[p.id] > 0 ? (
@@ -415,7 +445,7 @@ export default function ProjectsScreen() {
         </ScrollView>
         <View className="flex-row mt-6 gap-3">
           <Button title="Cancel" variant="outline" onPress={() => setModalVisible(false)} className="flex-1" />
-          <Button title="Create" onPress={handleCreateProject} loading={creating} className="flex-1" />
+          <Button title="Create" onPress={handleCreateProject} loading={createMutation.isPending} className="flex-1" />
         </View>
       </CustomModal>
 
@@ -447,7 +477,7 @@ export default function ProjectsScreen() {
         </ScrollView>
         <View className="flex-row mt-6 gap-3">
           <Button title="Cancel" variant="outline" onPress={() => setEditModalVisible(false)} className="flex-1" />
-          <Button title="Save Changes" onPress={handleUpdateProject} loading={creating} className="flex-1" />
+          <Button title="Save Changes" onPress={handleUpdateProject} loading={updateMutation.isPending} className="flex-1" />
         </View>
       </CustomModal>
 
@@ -469,15 +499,15 @@ export default function ProjectsScreen() {
             variant="outline" 
             onPress={() => setDeleteModalVisible(false)} 
             className="flex-1" 
-            disabled={creating}
+            disabled={deleteMutation.isPending}
           />
           <Pressable 
-            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${creating ? "opacity-60" : ""}`}
+            className={`flex-1 py-3.5 px-6 rounded-lg items-center justify-center bg-red-500 active:bg-red-600 ${deleteMutation.isPending ? "opacity-60" : ""}`}
             onPress={confirmDeleteProject}
-            disabled={creating}
+            disabled={deleteMutation.isPending}
           >
             <Text className="text-[15px] font-semibold text-white">
-              {creating ? "Deleting..." : "Delete"}
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Text>
           </Pressable>
         </View>

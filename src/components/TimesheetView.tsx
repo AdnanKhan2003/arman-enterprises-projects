@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React from "react";
 import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { Screen } from "./ui/Screen";
@@ -17,57 +17,41 @@ type Props = {
 
 export function TimesheetView({ projectId, embedded = false }: Props) {
   const isDark = useColorScheme() === "dark";
+  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
-  const [pending, setPending] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    if (!session?.user?.id) return;
-    try {
+  const { data: pending = [], refetch, isRefetching } = useQuery<any[]>({
+    queryKey: ["attendance", projectId || "all"],
+    queryFn: async () => {
       const res: any = await apiClient.get(`/api/attendance${projectId ? `?projectId=${projectId}` : ""}`);
-      const items = res.data?.items || res.data || [];
-      setPending(items);
-    } catch {}
-  };
+      return res.data?.items || res.data || [];
+    },
+    enabled: !!session?.user?.id,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [session?.user?.id, projectId]),
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  };
-
-  const handleReview = async (attendanceId: string, status: "Approved" | "Rejected") => {
-    if (!session?.user?.id) return;
-    setProcessingId(attendanceId);
-
-    try {
-      await apiClient.patch("/api/attendance", {
+  const reviewMutation = useMutation({
+    mutationFn: async ({ attendanceId, status }: { attendanceId: string; status: "Approved" | "Rejected" }) => {
+      return await apiClient.patch("/api/attendance", {
         attendanceId,
-        contractorId: session.user.id,
+        contractorId: session?.user?.id,
         status,
       });
-      Toast.show({ type: "success", text1: status, text2: `Timesheet ${status.toLowerCase()}.` });
-      setPending((prev) => prev.filter((t) => t.id !== attendanceId));
-    } catch {
-      Toast.show({ type: "error", text1: "Error", text2: `Failed to mark as ${status}` });
-    }
-
-    setProcessingId(null);
-  };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["project-header-stats"] });
+      Toast.show({ type: "success", text1: variables.status, text2: `Timesheet ${variables.status.toLowerCase()}.` });
+    },
+    onError: (_, variables) => {
+      Toast.show({ type: "error", text1: "Error", text2: `Failed to mark as ${variables.status}` });
+    },
+  });
 
   const body = (
     <ScrollView
       contentContainerClassName="px-5 pb-10 mt-2"
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
+        <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
       }
     >
       {pending.length === 0 ? (
@@ -130,17 +114,17 @@ export function TimesheetView({ projectId, embedded = false }: Props) {
 
               <View className="gap-2 pt-1">
                 <Pressable
-                  onPress={() => handleReview(t.id, "Approved")}
-                  disabled={processingId === t.id}
-                  className={`w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/50 items-center justify-center border border-emerald-200 dark:border-emerald-800 active:bg-emerald-200 dark:active:bg-emerald-800 ${processingId === t.id ? "opacity-50" : ""}`}
+                  onPress={() => reviewMutation.mutate({ attendanceId: t.id, status: "Approved" })}
+                  disabled={reviewMutation.isPending && reviewMutation.variables?.attendanceId === t.id}
+                  className={`w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/50 items-center justify-center border border-emerald-200 dark:border-emerald-800 active:bg-emerald-200 dark:active:bg-emerald-800 ${reviewMutation.isPending && reviewMutation.variables?.attendanceId === t.id ? "opacity-50" : ""}`}
                 >
                   <Ionicons name="checkmark" size={24} color="#10B981" />
                 </Pressable>
 
                 <Pressable
-                  onPress={() => handleReview(t.id, "Rejected")}
-                  disabled={processingId === t.id}
-                  className={`w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/50 items-center justify-center border border-red-200 dark:border-red-800 active:bg-red-200 dark:active:bg-red-800 ${processingId === t.id ? "opacity-50" : ""}`}
+                  onPress={() => reviewMutation.mutate({ attendanceId: t.id, status: "Rejected" })}
+                  disabled={reviewMutation.isPending && reviewMutation.variables?.attendanceId === t.id}
+                  className={`w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/50 items-center justify-center border border-red-200 dark:border-red-800 active:bg-red-200 dark:active:bg-red-800 ${reviewMutation.isPending && reviewMutation.variables?.attendanceId === t.id ? "opacity-50" : ""}`}
                 >
                   <Ionicons name="close" size={24} color="#EF4444" />
                 </Pressable>

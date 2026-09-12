@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   ScrollView,
@@ -7,6 +7,7 @@ import {
   useColorScheme,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { Screen } from "../../components/ui/Screen";
@@ -50,6 +51,7 @@ const defaultInvoiceName = (n: number) => `Bill_No_${String(n).padStart(2, "0")}
 
 export default function InvoiceBuilderScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const isDark = useColorScheme() === "dark";
   const { data: session } = authClient.useSession();
   const contractorName = session?.user?.name || "Contractor";
@@ -92,14 +94,66 @@ export default function InvoiceBuilderScreen() {
 
   const projectLocked = params.lockProject === "1";
   const [projId, setProjId] = useState<string | null>(params.projectId ? String(params.projectId) : null);
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 
-  useEffect(() => {
-    if (projectLocked) return;
-    apiClient.get("/api/projects").then((res: any) => {
-      if (res.data) setProjects((res.data as any[]).map((x) => ({ id: x.id, name: x.name })));
-    });
-  }, [session?.user?.id, projectLocked]);
+  const { data: projects = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/projects");
+      return (res.data || []).map((x: any) => ({ id: x.id, name: x.name }));
+    },
+    enabled: !projectLocked,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (saveFormat: Format) => {
+      const valid = rows.filter((r) => r.amount && !isNaN(Number(r.amount)));
+      if (valid.length === 0) {
+        throw new Error("Add at least one row with an amount");
+      }
+      if (!scope) return;
+
+      const items = valid.map((r) => ({
+        type: r.type,
+        date: r.date,
+        entity: r.entity || "",
+        description: r.description || "",
+        amount: String(r.amount),
+      }));
+
+      if (editId) {
+        const parsed = UpdateLedgerInvoiceSchema.parse({
+          id: editId,
+          scope,
+          format: saveFormat,
+          items,
+          title: title || undefined,
+          project_id: projId,
+        });
+        return await apiClient.put("/api/ledger-invoices", parsed);
+      } else {
+        const parsed = CreateLedgerInvoiceSchema.parse({
+          scope,
+          format: saveFormat,
+          items,
+          title: title || undefined,
+          project_id: projId,
+        });
+        return await apiClient.post("/api/ledger-invoices", parsed);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ledger-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["project-header-stats"] });
+      Toast.show({ type: "success", text1: editId ? "Invoice updated" : "Invoice created" });
+      router.back();
+    },
+    onError: (e: any) => {
+      Toast.show({ type: "error", text1: e?.message || "Save failed" });
+    },
+    onSettled: () => {
+      setSavingFmt(null);
+    },
+  });
 
   const defaultType: RowType = scope === "Income" ? "Income" : "Expense";
 
@@ -124,52 +178,9 @@ export default function InvoiceBuilderScreen() {
 
   const opposite: Format = format === "pdf" ? "excel" : "pdf";
 
-  const handleSave = async (saveFormat: Format) => {
-    const valid = rows.filter((r) => r.amount && !isNaN(Number(r.amount)));
-    if (valid.length === 0) {
-      Toast.show({ type: "error", text1: "Add at least one row with an amount" });
-      return;
-    }
-    if (!scope) return;
-
+  const handleSave = (saveFormat: Format) => {
     setSavingFmt(saveFormat);
-    try {
-      const items = valid.map((r) => ({
-        type: r.type,
-        date: r.date,
-        entity: r.entity || "",
-        description: r.description || "",
-        amount: String(r.amount),
-      }));
-
-      if (editId) {
-        const parsed = UpdateLedgerInvoiceSchema.parse({
-          id: editId,
-          scope,
-          format: saveFormat,
-          items,
-          title: title || undefined,
-          project_id: projId,
-        });
-        await apiClient.put("/api/ledger-invoices", parsed);
-      } else {
-        const parsed = CreateLedgerInvoiceSchema.parse({
-          scope,
-          format: saveFormat,
-          items,
-          title: title || undefined,
-          project_id: projId,
-        });
-        await apiClient.post("/api/ledger-invoices", parsed);
-      }
-
-      Toast.show({ type: "success", text1: editId ? "Invoice updated" : "Invoice created" });
-      router.back();
-    } catch (e: any) {
-      Toast.show({ type: "error", text1: "Save failed" });
-    } finally {
-      setSavingFmt(null);
-    }
+    saveMutation.mutate(saveFormat);
   };
 
   return (

@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { Screen } from "./ui/Screen";
@@ -34,19 +34,15 @@ type Props = {
 
 export function PaymentsView({ projectId, projectName, embedded = false }: Props) {
   const isDark = useColorScheme() === "dark";
+  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   const myId = session?.user?.id;
   const role = ((session?.user as any)?.role as "contractor" | "laborer") || "laborer";
 
-  const [payments, setPayments] = useState<any[]>([]);
-  const [parties, setParties] = useState<any>(null);
-  const [projects, setProjects] = useState<Party[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"mine" | "others">("mine");
   const [projectFilter, setProjectFilter] = useState<"all" | "general">("all");
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [direction, setDirection] = useState<"paid" | "received">("paid");
   const [cpType, setCpType] = useState<PartyType | null>(null);
   const [cpId, setCpId] = useState("");
@@ -56,33 +52,37 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
   const [formProjectId, setFormProjectId] = useState<string | null>(projectId || null);
   const [lastProjectId, setLastProjectId] = useState<string | null>(projectId || null);
 
-  const fetchData = async () => {
-    try {
-      const [payRes, partyRes, projRes]: any = await Promise.all([
-        apiClient.get("/api/payments"),
-        apiClient.get("/api/payments/parties"),
-        apiClient.get("/api/projects"),
-      ]);
-      const payItems = payRes.data?.items || payRes.data || [];
-      setPayments(payItems);
-      if (partyRes.data) setParties(partyRes.data);
-      if (projRes.data) {
-        const list = (projRes.data as any[]).map((r) => (r.projects ? r.projects : r));
-        setProjects(list.map((p) => ({ id: p.id, name: p.name })));
-      }
-    } catch {}
-  };
+  const { data: payments = [], refetch: refetchPayments, isRefetching: isRefetchingPayments } = useQuery<any[]>({
+    queryKey: ["payments"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/payments");
+      return res.data?.items || res.data || [];
+    },
+    enabled: !!session,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [session, projectId]),
-  );
+  const { data: parties = null, refetch: refetchParties } = useQuery<any>({
+    queryKey: ["payment-parties"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/payments/parties");
+      return res.data;
+    },
+    enabled: !!session,
+  });
+
+  const { data: projects = [], refetch: refetchProjects } = useQuery<Party[]>({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res: any = await apiClient.get("/api/projects");
+      if (!res.data) return [];
+      const list = (res.data as any[]).map((r) => (r.projects ? r.projects : r));
+      return list.map((p) => ({ id: p.id, name: p.name }));
+    },
+    enabled: !!session,
+  });
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
+    await Promise.all([refetchPayments(), refetchParties(), refetchProjects()]);
   };
 
   const projectNameOf = (id: string | null) => projects.find((p) => p.id === id)?.name;
@@ -128,32 +128,37 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
     setModalVisible(true);
   };
 
-  const handleSave = async () => {
-    if (!cpType || !cpId) return Toast.show({ type: "error", text1: "Select who this is with" });
-    if (!amount || isNaN(Number(amount))) return Toast.show({ type: "error", text1: "Enter a valid amount" });
-
-    setSubmitting(true);
-    try {
-      await apiClient.post("/api/payments", {
-        direction,
-        counterparty_type: cpType,
-        counterparty_id: cpId,
-        counterparty_name: cpName,
-        amount,
-        payment_date: new Date().toISOString().split("T")[0],
-        description: description || undefined,
-        project_id: formProjectId || undefined,
-      });
+  const createPaymentMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return await apiClient.post("/api/payments", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["project-header-stats"] });
       Toast.show({ type: "success", text1: "Payment saved" });
       setLastProjectId(formProjectId);
       setModalVisible(false);
       resetForm();
-      fetchData();
-    } catch {
+    },
+    onError: () => {
       Toast.show({ type: "error", text1: "Failed to save payment" });
-    } finally {
-      setSubmitting(false);
-    }
+    },
+  });
+
+  const handleSave = () => {
+    if (!cpType || !cpId) return Toast.show({ type: "error", text1: "Select who this is with" });
+    if (!amount || isNaN(Number(amount))) return Toast.show({ type: "error", text1: "Enter a valid amount" });
+
+    createPaymentMutation.mutate({
+      direction,
+      counterparty_type: cpType,
+      counterparty_id: cpId,
+      counterparty_name: cpName,
+      amount,
+      payment_date: new Date().toISOString().split("T")[0],
+      description: description || undefined,
+      project_id: formProjectId || undefined,
+    });
   };
 
   const todayLabel = new Date().toLocaleDateString();
@@ -163,7 +168,7 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
       <ScrollView
         contentContainerClassName="px-5 pb-10 mt-2"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
+          <RefreshControl refreshing={isRefetchingPayments} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
         }
       >
         <View className="flex-row gap-2 mb-5">
@@ -250,7 +255,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
             const tag = !projectId ? <ProjectTag name={projectNameOf(p.projectId)} /> : null;
 
             if (!involved) {
-              // Contractor "Others" view: a payment between two other parties.
               return (
                 <Card key={p.id} className="mb-3">
                   <View className="flex-row justify-between items-start">
@@ -402,7 +406,7 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
 
         <Input label="Note (optional)" value={description} onChangeText={setDescription} placeholder="What was this for?" />
 
-        <Button title="Save Payment" onPress={handleSave} loading={submitting} className="mt-2" />
+        <Button title="Save Payment" onPress={handleSave} loading={createPaymentMutation.isPending} className="mt-2" />
       </CustomModal>
     </>
   );
