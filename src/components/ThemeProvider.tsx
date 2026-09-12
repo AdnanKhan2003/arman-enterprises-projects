@@ -1,30 +1,34 @@
-import { useColorScheme, vars } from "nativewind";
+import { useColorScheme, VariableContextProvider } from "nativewind";
 import { View } from "react-native";
 
 const themes = {
-  light: vars({
+  light: {
     "--color-background": "255 255 255",
     "--color-foreground": "17 24 39",
     "--color-card": "243 244 246",
     "--color-primary": "37 99 235",
-  }),
-  dark: vars({
+  } as const,
+  dark: {
     // Dark Mode (RGB values)
     "--color-background": "17 24 39", // gray-900
     "--color-foreground": "255 255 255", // white
     "--color-card": "31 41 55", // gray-800
     "--color-primary": "59 130 246", // blue-500
-  }),
+  } as const,
 };
 
 const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const { colorScheme } = useColorScheme();
-  const theme = colorScheme === 'dark' ? themes.dark : themes.light;
+  const theme = colorScheme === "dark" ? themes.dark : themes.light;
+
   return (
-    <View style={[theme, { flex: 1 }]}>
-      {children}
-    </View>
+    <VariableContextProvider value={theme}>
+      <View className="flex-1 bg-white dark:bg-slate-900">
+        {children}
+      </View>
+    </VariableContextProvider>
   );
 };
 
 export default ThemeProvider;
+
