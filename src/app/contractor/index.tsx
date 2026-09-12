@@ -6,7 +6,6 @@ import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { authApi } from "../../api/auth";
 import { authClient } from "../../lib/auth-client";
 
 export default function MoreScreen() {
@@ -19,7 +18,6 @@ export default function MoreScreen() {
       <PageHeader title="More" showBack={false} />
 
       <ScrollView contentContainerClassName="px-5 pb-10">
-        {/* Who's signed in */}
         <Card className="mb-6">
           <View className="flex-row items-center gap-3">
             <View className="w-12 h-12 rounded-full bg-slate-900 dark:bg-slate-50 items-center justify-center">
@@ -61,7 +59,7 @@ export default function MoreScreen() {
         <Text className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3 mt-6">Account</Text>
 
         <Pressable
-          onPress={() => authApi.logout()}
+          onPress={() => authClient.signOut()}
           className="flex-row items-center gap-3 py-4 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:opacity-60"
         >
           <Ionicons name="log-out-outline" size={22} color="#EF4444" />

@@ -6,7 +6,7 @@ import {
   CreateLaborerSchema,
   UpdateLaborerSchema,
   DeleteLaborerSchema,
-} from "../../../api/laborer";
+} from "../../../schemas/laborer";
 import {
   withErrorHandling,
   requireAuth,

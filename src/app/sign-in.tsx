@@ -14,7 +14,7 @@ import { Screen } from "../components/ui/Screen";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { Link } from "expo-router";
 import { authClient } from "../lib/auth-client";
-import { LoginSchema } from "../api/auth";
+import { LoginSchema } from "../schemas/auth";
 import Toast from "react-native-toast-message";
 
 export default function SignInScreen() {
@@ -25,10 +25,8 @@ export default function SignInScreen() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const handleSignIn = async () => {
-    // Reset errors
     setErrors({});
     
-    // Validate with Zod
     const parsed = LoginSchema.safeParse({ email, password });
     if (!parsed.success) {
       const formatted = parsed.error.flatten().fieldErrors;
@@ -48,12 +46,11 @@ export default function SignInScreen() {
 
     if (error) {
       Toast.show({
-        type: 'error',
-        text1: 'Login Failed',
+        type: "error",
+        text1: "Login Failed",
         text2: error.message || "Invalid credentials."
       });
     } 
-    // If successful, our Global Layout Guard (_layout.tsx) will automatically redirect!
   };
 
   const colorScheme = useColorScheme();

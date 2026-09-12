@@ -6,9 +6,8 @@ import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
-import { authApi } from "../../api/auth";
 import { authClient } from "../../lib/auth-client";
-import { attendanceApi } from "../../api/attendance";
+import { apiClient } from "../../lib/http-client";
 
 export default function LaborerDashboard() {
   const isDark = useColorScheme() === "dark";
@@ -20,8 +19,9 @@ export default function LaborerDashboard() {
   const fetchData = async () => {
     if (!session?.user?.id) return;
     try {
-      const attendanceRes = await attendanceApi.getLaborerAttendanceHistory(session.user.id);
-      if (attendanceRes.data) setAttendance(attendanceRes.data);
+      const res: any = await apiClient.get("/api/attendance");
+      const attendanceList = res.data?.data || res.data || [];
+      setAttendance(attendanceList);
     } catch (e) {
       console.error(e);
     }
@@ -48,7 +48,7 @@ export default function LaborerDashboard() {
         </View>
         <View className="flex-row items-center gap-2">
           <ThemeToggle />
-          <Pressable onPress={() => authApi.logout()} className="p-2 active:opacity-50">
+          <Pressable onPress={() => authClient.signOut()} className="p-2 active:opacity-50">
             <Ionicons name="log-out-outline" size={24} color={isDark ? "#F8FAFC" : "#0F172A"} />
           </Pressable>
         </View>

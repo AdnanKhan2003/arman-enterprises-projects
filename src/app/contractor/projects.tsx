@@ -8,12 +8,9 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { authClient } from "../../lib/auth-client";
-import { projectsApi } from "../../api/projects";
-import { contactsApi } from "../../api/contact";
-import { laborerApi } from "../../api/laborer";
+import { apiClient } from "../../lib/http-client";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { attendanceApi } from "../../api/attendance";
 import Toast from "react-native-toast-message";
 
 export default function ProjectsScreen() {
@@ -32,42 +29,39 @@ export default function ProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Modals
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
-  // State
   const [projectName, setProjectName] = useState("");
   const [projectLocation, setProjectLocation] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
 
-  // Assignment State
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedLaborerIds, setSelectedLaborerIds] = useState<string[]>([]);
 
   const fetchData = async () => {
     if (!session?.user?.id) return;
     try {
-      const [projectsRes, contactsRes, laborersRes] = await Promise.all([
-        projectsApi.getProjects("contractor", session.user.id),
-        contactsApi.getContractorContacts(session.user.id),
-        laborerApi.getLaborers(),
+      const [projectsRes, contactsRes, laborersRes, pendingRes]: any = await Promise.all([
+        apiClient.get("/api/projects"),
+        apiClient.get("/api/contacts"),
+        apiClient.get("/api/contractors/laborers"),
+        apiClient.get("/api/attendance"),
       ]);
 
       if (projectsRes.data) setProjects(projectsRes.data);
 
-      // Pending clock-ins per project, so the list shows where review is owed.
-      const pendingRes = await attendanceApi.getPendingAttendance();
       const counts: Record<string, number> = {};
-      for (const rec of (pendingRes.data as any[]) || []) {
+      const pendingItems = pendingRes.data?.items || pendingRes.data || [];
+      for (const rec of pendingItems) {
         counts[rec.projectId] = (counts[rec.projectId] || 0) + 1;
       }
       setPendingByProject(counts);
-      if (contactsRes.clients) setClients(contactsRes.clients);
-      if (laborersRes.laborers) setLaborers(laborersRes.laborers);
+      if (contactsRes.data?.clients) setClients(contactsRes.data.clients);
+      if (laborersRes.data?.laborers) setLaborers(laborersRes.data.laborers);
     } catch (e) {
       console.error(e);
     }
@@ -119,7 +113,7 @@ export default function ProjectsScreen() {
     
     setCreating(true);
     try {
-      const { data, error } = await projectsApi.createProject({
+      await apiClient.post("/api/projects", {
         contractor_id: session.user.id,
         name: projectName,
         location: projectLocation,
@@ -128,12 +122,10 @@ export default function ProjectsScreen() {
         laborer_ids: selectedLaborerIds,
       });
 
-      if (error) throw error;
-      
       Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Project created successfully'
+        type: "success",
+        text1: "Success",
+        text2: "Project created successfully",
       });
       setModalVisible(false);
       setProjectName("");
@@ -144,9 +136,9 @@ export default function ProjectsScreen() {
       await fetchData();
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: e.message || "Failed to create project"
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to create project",
       });
     } finally {
       setCreating(false);
@@ -158,7 +150,8 @@ export default function ProjectsScreen() {
     
     setCreating(true);
     try {
-      const { data, error } = await projectsApi.updateProject(editingProjectId, {
+      await apiClient.patch("/api/projects", {
+        id: editingProjectId,
         name: projectName,
         location: projectLocation,
         description: projectDescription,
@@ -166,12 +159,10 @@ export default function ProjectsScreen() {
         laborer_ids: selectedLaborerIds,
       });
 
-      if (error) throw error;
-      
       Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Project updated successfully'
+        type: "success",
+        text1: "Success",
+        text2: "Project updated successfully",
       });
       setEditModalVisible(false);
       setProjectName("");
@@ -183,9 +174,9 @@ export default function ProjectsScreen() {
       await fetchData();
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: e.message || "Failed to update project"
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to update project",
       });
     } finally {
       setCreating(false);
@@ -194,16 +185,16 @@ export default function ProjectsScreen() {
 
   const toggleStatus = async (project: any) => {
     const next = project.status === "completed" ? "active" : "completed";
-    const { error } = await projectsApi.setProjectStatus(project.id, next);
-    if (error) {
+    try {
+      await apiClient.patch("/api/projects", { id: project.id, status: next });
+      setProjects((prev) => prev.map((x) => (x.id === project.id ? { ...x, status: next } : x)));
+      Toast.show({
+        type: "success",
+        text1: next === "completed" ? "Marked completed" : "Project reopened",
+      });
+    } catch {
       Toast.show({ type: "error", text1: "Could not update project" });
-      return;
     }
-    setProjects((prev) => prev.map((x) => (x.id === project.id ? { ...x, status: next } : x)));
-    Toast.show({
-      type: "success",
-      text1: next === "completed" ? "Marked completed" : "Project reopened",
-    });
   };
 
   const confirmDeleteProject = async () => {
@@ -211,22 +202,21 @@ export default function ProjectsScreen() {
     
     setCreating(true);
     try {
-      const { error } = await projectsApi.deleteProject(projectToDelete.id);
-      if (error) throw error;
+      await apiClient.delete(`/api/projects?id=${projectToDelete.id}`);
 
       Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Project deleted successfully'
+        type: "success",
+        text1: "Success",
+        text2: "Project deleted successfully",
       });
       setDeleteModalVisible(false);
       setProjectToDelete(null);
       await fetchData();
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: e.message || "Failed to delete project"
+        type: "error",
+        text1: "Error",
+        text2: e.message || "Failed to delete project",
       });
     } finally {
       setCreating(false);
@@ -394,7 +384,6 @@ export default function ProjectsScreen() {
         )}
       </ScrollView>
 
-      {/* Create Project Modal */}
       <CustomModal visible={modalVisible}>
         <Text className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-50">New Project</Text>
         <Text className="text-sm mb-5 text-slate-500 dark:text-slate-400">
@@ -430,7 +419,6 @@ export default function ProjectsScreen() {
         </View>
       </CustomModal>
 
-      {/* Edit Project Modal */}
       <CustomModal visible={editModalVisible}>
         <Text className="text-xl font-bold mb-5 text-slate-900 dark:text-slate-50">Edit Project</Text>
         <ScrollView className="max-h-[65vh]" showsVerticalScrollIndicator={false}>
@@ -463,7 +451,6 @@ export default function ProjectsScreen() {
         </View>
       </CustomModal>
 
-      {/* Delete Confirmation Modal */}
       <CustomModal visible={deleteModalVisible}>
         <View className="items-center mb-4">
           <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">

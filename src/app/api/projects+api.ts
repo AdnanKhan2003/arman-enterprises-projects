@@ -5,7 +5,7 @@ import {
   CreateProjectSchema,
   UpdateProjectSchema,
   DeleteProjectSchema,
-} from "../../api/projects";
+} from "../../schemas/project";
 import {
   withErrorHandling,
   requireAuth,

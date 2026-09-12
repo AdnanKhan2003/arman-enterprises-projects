@@ -10,7 +10,8 @@ import { Button } from "./ui/Button";
 import { PageHeader } from "./ui/PageHeader";
 import { CustomModal } from "./ui/CustomModal";
 import { authClient } from "../lib/auth-client";
-import { ledgerInvoicesApi, LedgerInvoiceItem } from "../api/ledgerInvoices";
+import { apiClient } from "../lib/http-client";
+import { LedgerInvoiceItem } from "../schemas/ledger-invoice";
 import { exportLedgerToPDF, exportLedgerToExcel } from "../lib/export";
 
 type Scope = "Income" | "Expense" | "Both";
@@ -44,7 +45,6 @@ const itemsTotals = (items: LedgerInvoiceItem[]) => {
 };
 
 type Props = {
-  /** Scope to one project. Omit for the full ledger, including General. */
   projectId?: string;
   projectName?: string;
   embedded?: boolean;
@@ -63,8 +63,11 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
   const [menuFor, setMenuFor] = useState<LedgerInvoice | null>(null);
 
   const fetchData = async () => {
-    const res = await ledgerInvoicesApi.getLedgerInvoices(projectId);
-    if (res.data) setInvoices(res.data);
+    try {
+      const res: any = await apiClient.get(`/api/ledger-invoices${projectId ? `?projectId=${projectId}` : ""}`);
+      const data = res.data?.items || res.data || [];
+      setInvoices(data);
+    } catch {}
   };
 
   useFocusEffect(
@@ -84,7 +87,6 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
   const totals = itemsTotals(allItems);
   const visible = tab === "All" ? scoped : scoped.filter((s) => s.scope === tab);
 
-  // Next Bill_No — one past the highest existing Bill_No_NN (custom names ignored).
   const nextBillNo = () => {
     let max = 0;
     for (const s of invoices) {
@@ -143,11 +145,11 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          const res = await ledgerInvoicesApi.deleteLedgerInvoice(s.id);
-          if (res.success) {
+          try {
+            await apiClient.delete(`/api/ledger-invoices?id=${s.id}`);
             setInvoices((prev) => prev.filter((x) => x.id !== s.id));
             Toast.show({ type: "success", text1: "Deleted" });
-          } else {
+          } catch {
             Toast.show({ type: "error", text1: "Delete failed" });
           }
         },
@@ -163,7 +165,6 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
         }
       >
-        {/* KPI cards */}
         <View className="flex-row gap-2 mb-5">
           <View className="flex-1 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-3 rounded-xl">
             <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">INCOME</Text>
@@ -187,7 +188,6 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
 
         <Button title="+  Create Invoice" onPress={handleCreate} className="mb-5" />
 
-        {/* All vs General — only meaningful outside a project */}
         {!projectId && (
           <View className="flex-row bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-3">
             {(
@@ -211,7 +211,6 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
           </View>
         )}
 
-        {/* Scope tabs */}
         <View className="flex-row bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-4">
           {TABS.map((t) => (
             <Pressable
@@ -228,7 +227,6 @@ export function LedgerView({ projectId, projectName, embedded = false }: Props) 
           ))}
         </View>
 
-        {/* Invoice list */}
         {visible.length === 0 ? (
           <View className="items-center py-12">
             <Ionicons name="document-text-outline" size={40} color={isDark ? "#475569" : "#CBD5E1"} />

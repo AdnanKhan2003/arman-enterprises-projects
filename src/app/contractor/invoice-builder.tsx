@@ -15,8 +15,8 @@ import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { authClient } from "../../lib/auth-client";
-import { ledgerInvoicesApi } from "../../api/ledgerInvoices";
-import { projectsApi } from "../../api/projects";
+import { apiClient } from "../../lib/http-client";
+import { CreateLedgerInvoiceSchema, UpdateLedgerInvoiceSchema } from "../../schemas";
 
 type Scope = "Expense" | "Income" | "Both";
 type Format = "pdf" | "excel";
@@ -96,7 +96,7 @@ export default function InvoiceBuilderScreen() {
 
   useEffect(() => {
     if (projectLocked) return;
-    projectsApi.getProjects("contractor", session?.user?.id || "").then((res) => {
+    apiClient.get("/api/projects").then((res: any) => {
       if (res.data) setProjects((res.data as any[]).map((x) => ({ id: x.id, name: x.name })));
     });
   }, [session?.user?.id, projectLocked]);
@@ -142,15 +142,30 @@ export default function InvoiceBuilderScreen() {
         amount: String(r.amount),
       }));
 
-      const res = editId
-        ? await ledgerInvoicesApi.updateLedgerInvoice({ id: editId, scope, format: saveFormat, items, title: title || undefined, project_id: projId })
-        : await ledgerInvoicesApi.createLedgerInvoice({ scope, format: saveFormat, items, title: title || undefined, project_id: projId });
-
-      if (res.error) throw res.error;
+      if (editId) {
+        const parsed = UpdateLedgerInvoiceSchema.parse({
+          id: editId,
+          scope,
+          format: saveFormat,
+          items,
+          title: title || undefined,
+          project_id: projId,
+        });
+        await apiClient.put("/api/ledger-invoices", parsed);
+      } else {
+        const parsed = CreateLedgerInvoiceSchema.parse({
+          scope,
+          format: saveFormat,
+          items,
+          title: title || undefined,
+          project_id: projId,
+        });
+        await apiClient.post("/api/ledger-invoices", parsed);
+      }
 
       Toast.show({ type: "success", text1: editId ? "Invoice updated" : "Invoice created" });
       router.back();
-    } catch (e) {
+    } catch (e: any) {
       Toast.show({ type: "error", text1: "Save failed" });
     } finally {
       setSavingFmt(null);
@@ -176,7 +191,6 @@ export default function InvoiceBuilderScreen() {
             Choose which transactions you'll enter.
           </Text>
 
-          {/* Project — locked when the builder was opened from inside one */}
           <Text className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">PROJECT</Text>
           {projectLocked ? (
             <View className="flex-row items-center gap-2 border rounded-lg p-3 mb-5 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700">

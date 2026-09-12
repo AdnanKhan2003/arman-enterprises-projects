@@ -1,6 +1,6 @@
 import { db } from "../../../db";
 import { projectAssignments } from "../../../db/schema";
-import { AssignLaborerSchema } from "../../../api/projects";
+import { AssignLaborerSchema } from "../../../schemas/project";
 import {
   withErrorHandling,
   requireAuth,

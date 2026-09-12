@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, RefreshControl, useColorScheme, Pressable, Modal, Alert } from "react-native";
+import { View, ScrollView, RefreshControl, useColorScheme, Pressable } from "react-native";
 import { Screen } from "../../components/ui/Screen";
 import { Text } from "../../components/ui/Text";
 import { Card } from "../../components/ui/Card";
@@ -8,7 +8,8 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { authClient } from "../../lib/auth-client";
-import { contactsApi } from "../../api/contact";
+import { apiClient } from "../../lib/http-client";
+import { CreateContactSchema, UpdateContactSchema, DeleteContactSchema } from "../../schemas";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
@@ -39,9 +40,9 @@ export default function ContactsScreen() {
   const fetchData = async () => {
     if (!session?.user?.id) return;
     try {
-      const contactsRes = await contactsApi.getContractorContacts(session.user.id);
-      if (contactsRes.clients) setClients(contactsRes.clients);
-      if (contactsRes.vendors) setVendors(contactsRes.vendors);
+      const res: any = await apiClient.get("/api/contacts");
+      if (res.clients) setClients(res.clients);
+      if (res.vendors) setVendors(res.vendors);
     } catch (e) {
       console.error(e);
     }
@@ -73,41 +74,26 @@ export default function ContactsScreen() {
     setCreating(true);
     try {
       if (editingContactId) {
-        if (contactType === "client") {
-          await contactsApi.updateClient({
-            id: editingContactId,
-            name: contactName,
-            address: contactAddress,
-            phone: contactPhone,
-            email: contactEmail,
-          });
-        } else {
-          await contactsApi.updateVendor({
-            id: editingContactId,
-            name: contactName,
-            address: contactAddress,
-            vendor_type: contactVendorType,
-            phone: contactPhone,
-            email: contactEmail,
-          });
-        }
+        const parsed = UpdateContactSchema.parse({
+          id: editingContactId,
+          type: contactType,
+          name: contactName,
+          address: contactAddress,
+          vendor_type: contactType === "vendor" ? contactVendorType : undefined,
+          phone: contactPhone,
+          email: contactEmail,
+        });
+        await apiClient.patch("/api/contacts", parsed);
       } else {
-        if (contactType === "client") {
-          await contactsApi.createClient({ 
-            name: contactName,
-            address: contactAddress,
-            phone: contactPhone,
-            email: contactEmail,
-          });
-        } else {
-          await contactsApi.createVendor({ 
-            name: contactName,
-            address: contactAddress,
-            vendor_type: contactVendorType,
-            phone: contactPhone,
-            email: contactEmail,
-          });
-        }
+        const parsed = CreateContactSchema.parse({
+          type: contactType,
+          name: contactName,
+          address: contactAddress,
+          vendor_type: contactType === "vendor" ? contactVendorType : undefined,
+          phone: contactPhone,
+          email: contactEmail,
+        });
+        await apiClient.post("/api/contacts", parsed);
       }
       setContactName("");
       setContactAddress("");
@@ -119,8 +105,8 @@ export default function ContactsScreen() {
       await fetchData();
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
+        type: "error",
+        text1: "Error",
         text2: e.message || "Failed to save contact"
       });
     } finally {
@@ -135,20 +121,20 @@ export default function ContactsScreen() {
 
   const confirmDeleteContact = async () => {
     if (!contactToDelete) return;
-    setCreating(true); // Re-use creating state for loading indicator on delete button
+    setCreating(true);
     try {
-      if (contactToDelete.type === "client") {
-        await contactsApi.deleteClient(contactToDelete.id);
-      } else {
-        await contactsApi.deleteVendor(contactToDelete.id);
-      }
+      const parsed = DeleteContactSchema.parse({
+        id: contactToDelete.id,
+        type: contactToDelete.type,
+      });
+      await apiClient.delete(`/api/contacts?id=${parsed.id}&type=${parsed.type}`);
       await fetchData();
       setDeleteModalVisible(false);
       setContactToDelete(null);
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
+        type: "error",
+        text1: "Error",
         text2: e.message || "Failed to delete contact"
       });
     } finally {
@@ -164,16 +150,16 @@ export default function ContactsScreen() {
 
       <View className="px-5 pb-2 flex-row justify-between items-center gap-2">
         <Pressable 
-          className={`flex-1 py-2 rounded-lg items-center ${activeTab === 'clients' ? 'bg-slate-900 dark:bg-slate-50' : 'bg-slate-200 dark:bg-slate-800'}`}
+          className={`flex-1 py-2 rounded-lg items-center ${activeTab === "clients" ? "bg-slate-900 dark:bg-slate-50" : "bg-slate-200 dark:bg-slate-800"}`}
           onPress={() => setActiveTab("clients")}
         >
-          <Text className={`font-medium ${activeTab === 'clients' ? 'text-white dark:text-black' : 'text-slate-600 dark:text-slate-400'}`}>Clients ({clients.length})</Text>
+          <Text className={`font-medium ${activeTab === "clients" ? "text-white dark:text-black" : "text-slate-600 dark:text-slate-400"}`}>Clients ({clients.length})</Text>
         </Pressable>
         <Pressable 
-          className={`flex-1 py-2 rounded-lg items-center ${activeTab === 'vendors' ? 'bg-slate-900 dark:bg-slate-50' : 'bg-slate-200 dark:bg-slate-800'}`}
+          className={`flex-1 py-2 rounded-lg items-center ${activeTab === "vendors" ? "bg-slate-900 dark:bg-slate-50" : "bg-slate-200 dark:bg-slate-800"}`}
           onPress={() => setActiveTab("vendors")}
         >
-          <Text className={`font-medium ${activeTab === 'vendors' ? 'text-white dark:text-black' : 'text-slate-600 dark:text-slate-400'}`}>Vendors ({vendors.length})</Text>
+          <Text className={`font-medium ${activeTab === "vendors" ? "text-white dark:text-black" : "text-slate-600 dark:text-slate-400"}`}>Vendors ({vendors.length})</Text>
         </Pressable>
       </View>
 
@@ -233,7 +219,6 @@ export default function ContactsScreen() {
         )}
       </ScrollView>
 
-      {/* Create/Edit Contact Modal */}
       <CustomModal visible={contactModalVisible}>
         <Text className="text-xl font-bold mb-5 text-slate-900 dark:text-slate-50">
           {editingContactId ? "Edit" : "New"} {contactType === "client" ? "Client" : "Vendor"}
@@ -279,7 +264,6 @@ export default function ContactsScreen() {
         </View>
       </CustomModal>
 
-      {/* Delete Confirmation Modal */}
       <CustomModal visible={deleteModalVisible}>
         <View className="items-center mb-4">
           <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">

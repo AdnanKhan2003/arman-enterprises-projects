@@ -5,7 +5,7 @@ import {
   MarkAttendanceSchema,
   ReviewAttendanceSchema,
   AttendanceQuerySchema,
-} from "../../api/attendance";
+} from "../../schemas/attendance";
 import {
   withErrorHandling,
   requireAuth,

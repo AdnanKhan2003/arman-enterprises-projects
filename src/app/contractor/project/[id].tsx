@@ -8,10 +8,7 @@ import { PageHeader } from "../../../components/ui/PageHeader";
 import { TimesheetView } from "../../../components/TimesheetView";
 import { PaymentsView } from "../../../components/PaymentsView";
 import { LedgerView } from "../../../components/LedgerView";
-import { projectsApi } from "../../../api/projects";
-import { attendanceApi } from "../../../api/attendance";
-import { ledgerInvoicesApi } from "../../../api/ledgerInvoices";
-import { paymentsApi } from "../../../api/payments";
+import { apiClient } from "../../../lib/http-client";
 
 type Pane = "timesheet" | "payments" | "ledger";
 const PANES: { key: Pane; label: string; icon: any }[] = [
@@ -33,31 +30,38 @@ export default function ProjectDetailScreen() {
   const [stats, setStats] = useState({ pending: 0, ledgerNet: 0, cashNet: 0 });
 
   const fetchHeader = async () => {
-    const [projRes, pendRes, ledgerRes, payRes] = await Promise.all([
-      projectsApi.getProjectDetails(projectId),
-      attendanceApi.getPendingAttendance(projectId),
-      ledgerInvoicesApi.getLedgerInvoices(projectId),
-      paymentsApi.getPayments(),
-    ]);
+    try {
+      const [projRes, pendRes, ledgerRes, payRes]: any = await Promise.all([
+        apiClient.get("/api/projects"),
+        apiClient.get(`/api/attendance?projectId=${projectId}`),
+        apiClient.get(`/api/ledger-invoices?projectId=${projectId}`),
+        apiClient.get("/api/payments"),
+      ]);
 
-    if (projRes.data) setProject(projRes.data);
+      const found = (projRes.data || []).find((p: any) => p.id === projectId);
+      if (found) setProject(found);
 
-    const items = ((ledgerRes.data as any[]) || []).flatMap((s) => s.items || []);
-    const income = items
-      .filter((i: any) => i.type === "Income")
-      .reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
-    const expense = items
-      .filter((i: any) => i.type === "Expense")
-      .reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
+      const items = (ledgerRes.data?.data || ledgerRes.data || []).flatMap((s: any) => s.items || []);
+      const income = items
+        .filter((i: any) => i.type === "Income")
+        .reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
+      const expense = items
+        .filter((i: any) => i.type === "Expense")
+        .reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
 
-    const scopedPayments = ((payRes.data as any[]) || []).filter((p) => p.projectId === projectId);
-    const cashIn = scopedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const scopedPayments = (payRes.data || []).filter((p: any) => p.projectId === projectId);
+      const cashIn = scopedPayments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
 
-    setStats({
-      pending: ((pendRes.data as any[]) || []).length,
-      ledgerNet: income - expense,
-      cashNet: cashIn,
-    });
+      const pendingList = (pendRes.data || []).filter((a: any) => a.status === "Pending" || a.status === "pending");
+
+      setStats({
+        pending: pendingList.length,
+        ledgerNet: income - expense,
+        cashNet: cashIn,
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   useFocusEffect(
@@ -71,7 +75,6 @@ export default function ProjectDetailScreen() {
       <PageHeader title={project?.name || "Project"} />
 
       <View className="px-5 pb-4">
-        {/* Meta */}
         {(project?.location || project?.client?.name) && (
           <View className="flex-row flex-wrap gap-x-4 gap-y-1 mb-4">
             {project?.location ? (
@@ -89,7 +92,6 @@ export default function ProjectDetailScreen() {
           </View>
         )}
 
-        {/* Stat strip */}
         <View className="flex-row gap-2 mb-4">
           <Stat
             label="PENDING"
@@ -100,7 +102,6 @@ export default function ProjectDetailScreen() {
           <Stat label="CASH" value={money(stats.cashNet)} tone="slate" />
         </View>
 
-        {/* Segmented control */}
         <View className="flex-row bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
           {PANES.map((p) => (
             <Pressable

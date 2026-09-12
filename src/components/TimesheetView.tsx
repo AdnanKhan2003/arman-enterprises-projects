@@ -8,12 +8,10 @@ import { Text } from "./ui/Text";
 import { Card } from "./ui/Card";
 import { PageHeader } from "./ui/PageHeader";
 import { authClient } from "../lib/auth-client";
-import { attendanceApi } from "../api/attendance";
+import { apiClient } from "../lib/http-client";
 
 type Props = {
-  /** Scope to one project. Omit for every project the contractor owns. */
   projectId?: string;
-  /** Rendered inside another screen, so skip the Screen/PageHeader chrome. */
   embedded?: boolean;
 };
 
@@ -27,8 +25,11 @@ export function TimesheetView({ projectId, embedded = false }: Props) {
 
   const fetchData = async () => {
     if (!session?.user?.id) return;
-    const { data } = await attendanceApi.getPendingAttendance(projectId);
-    if (data) setPending(data);
+    try {
+      const res: any = await apiClient.get(`/api/attendance${projectId ? `?projectId=${projectId}` : ""}`);
+      const items = res.data?.items || res.data || [];
+      setPending(items);
+    } catch {}
   };
 
   useFocusEffect(
@@ -47,13 +48,16 @@ export function TimesheetView({ projectId, embedded = false }: Props) {
     if (!session?.user?.id) return;
     setProcessingId(attendanceId);
 
-    const { error } = await attendanceApi.reviewAttendance(attendanceId, session.user.id, status);
-
-    if (error) {
-      Toast.show({ type: "error", text1: "Error", text2: `Failed to mark as ${status}` });
-    } else {
+    try {
+      await apiClient.patch("/api/attendance", {
+        attendanceId,
+        contractorId: session.user.id,
+        status,
+      });
       Toast.show({ type: "success", text1: status, text2: `Timesheet ${status.toLowerCase()}.` });
       setPending((prev) => prev.filter((t) => t.id !== attendanceId));
+    } catch {
+      Toast.show({ type: "error", text1: "Error", text2: `Failed to mark as ${status}` });
     }
 
     setProcessingId(null);

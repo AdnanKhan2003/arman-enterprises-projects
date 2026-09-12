@@ -7,9 +7,9 @@ import { CustomModal } from "../../components/ui/CustomModal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
-import { ThemeToggle } from "../../components/ui/ThemeToggle";
 import { authClient } from "../../lib/auth-client";
-import { laborerApi } from "../../api/laborer";
+import { apiClient } from "../../lib/http-client";
+import { CreateLaborerSchema, UpdateLaborerSchema, DeleteLaborerSchema } from "../../schemas";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
@@ -24,12 +24,8 @@ export default function LaborersScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
-  
-  // Edit State
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingLaborerId, setEditingLaborerId] = useState<string | null>(null);
-  
-  // Delete State
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [laborerToDelete, setLaborerToDelete] = useState<any>(null);
 
@@ -42,7 +38,7 @@ export default function LaborersScreen() {
   const fetchData = async () => {
     if (!session?.user?.id) return;
     try {
-      const res = await laborerApi.getLaborers();
+      const res: any = await apiClient.get("/api/contractors/laborers");
       if (res.laborers) setLaborers(res.laborers);
     } catch (e) {
       console.error(e);
@@ -64,12 +60,13 @@ export default function LaborersScreen() {
     
     setCreating(true);
     try {
-      await laborerApi.createLaborer({ name, email, password });
+      const parsed = CreateLaborerSchema.parse({ name, email, password });
+      await apiClient.post("/api/contractors/laborers", parsed);
       
       Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Laborer account created successfully!'
+        type: "success",
+        text1: "Success",
+        text2: "Laborer account created successfully!"
       });
       
       setName("");
@@ -79,8 +76,8 @@ export default function LaborersScreen() {
       await fetchData();
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
+        type: "error",
+        text1: "Error",
         text2: e.message || "Failed to create laborer account"
       });
     } finally {
@@ -93,11 +90,12 @@ export default function LaborersScreen() {
     
     setCreating(true);
     try {
-      await laborerApi.updateLaborerName(editingLaborerId, name);
+      const parsed = UpdateLaborerSchema.parse({ id: editingLaborerId, name });
+      await apiClient.patch("/api/contractors/laborers", parsed);
       Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Laborer updated successfully'
+        type: "success",
+        text1: "Success",
+        text2: "Laborer updated successfully"
       });
       setEditModalVisible(false);
       setName("");
@@ -105,8 +103,8 @@ export default function LaborersScreen() {
       await fetchData();
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
+        type: "error",
+        text1: "Error",
         text2: e.message || "Failed to update laborer"
       });
     } finally {
@@ -119,19 +117,20 @@ export default function LaborersScreen() {
     
     setCreating(true);
     try {
-      await laborerApi.deleteLaborer(laborerToDelete.id);
+      const parsed = DeleteLaborerSchema.parse({ id: laborerToDelete.id });
+      await apiClient.delete(`/api/contractors/laborers?id=${parsed.id}`);
       Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Laborer deleted successfully'
+        type: "success",
+        text1: "Success",
+        text2: "Laborer deleted successfully"
       });
       setDeleteModalVisible(false);
       setLaborerToDelete(null);
       await fetchData();
     } catch (e: any) {
       Toast.show({
-        type: 'error',
-        text1: 'Error',
+        type: "error",
+        text1: "Error",
         text2: e.message || "Failed to delete laborer"
       });
     } finally {
@@ -211,7 +210,6 @@ export default function LaborersScreen() {
         </View>
       </ScrollView>
 
-      {/* Create Laborer Modal */}
       <CustomModal visible={modalVisible}>
         <Text className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-50">New Laborer</Text>
         <Text className="text-sm mb-5 text-slate-500 dark:text-slate-400">
@@ -253,7 +251,6 @@ export default function LaborersScreen() {
         </View>
       </CustomModal>
 
-      {/* Edit Laborer Modal */}
       <CustomModal visible={editModalVisible}>
         <Text className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-50">Edit Laborer</Text>
         <Text className="text-sm mb-5 text-slate-500 dark:text-slate-400">
@@ -271,7 +268,6 @@ export default function LaborersScreen() {
         </View>
       </CustomModal>
 
-      {/* Delete Confirmation Modal */}
       <CustomModal visible={deleteModalVisible}>
         <View className="items-center mb-4">
           <View className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full items-center justify-center mb-4">

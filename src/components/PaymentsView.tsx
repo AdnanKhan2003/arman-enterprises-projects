@@ -11,8 +11,8 @@ import { Input } from "./ui/Input";
 import { PageHeader } from "./ui/PageHeader";
 import { CustomModal } from "./ui/CustomModal";
 import { authClient } from "../lib/auth-client";
-import { paymentsApi, PartyType } from "../api/payments";
-import { projectsApi } from "../api/projects";
+import { apiClient } from "../lib/http-client";
+import { PartyType } from "../schemas/payment";
 
 const money = (n: number) =>
   "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -27,7 +27,6 @@ const TYPE_LABEL: Record<PartyType, string> = {
 type Party = { id: string; name: string };
 
 type Props = {
-  /** Scope to one project. Omit for every payment, including General. */
   projectId?: string;
   projectName?: string;
   embedded?: boolean;
@@ -55,22 +54,23 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [formProjectId, setFormProjectId] = useState<string | null>(projectId || null);
-  // Remembered across saves so a run of payments for one site is one tap each.
   const [lastProjectId, setLastProjectId] = useState<string | null>(projectId || null);
 
   const fetchData = async () => {
-    const [payRes, partyRes, projRes] = await Promise.all([
-      paymentsApi.getPayments(),
-      paymentsApi.getParties(),
-      projectsApi.getProjects(role, myId || ""),
-    ]);
-    if (payRes.data) setPayments(payRes.data);
-    if (partyRes.data) setParties(partyRes.data);
-    if (projRes.data) {
-      // Contractors get a flat list; laborers get [{ projects: {...} }].
-      const list = (projRes.data as any[]).map((r) => (r.projects ? r.projects : r));
-      setProjects(list.map((p) => ({ id: p.id, name: p.name })));
-    }
+    try {
+      const [payRes, partyRes, projRes]: any = await Promise.all([
+        apiClient.get("/api/payments"),
+        apiClient.get("/api/payments/parties"),
+        apiClient.get("/api/projects"),
+      ]);
+      const payItems = payRes.data?.items || payRes.data || [];
+      setPayments(payItems);
+      if (partyRes.data) setParties(partyRes.data);
+      if (projRes.data) {
+        const list = (projRes.data as any[]).map((r) => (r.projects ? r.projects : r));
+        setProjects(list.map((p) => ({ id: p.id, name: p.name })));
+      }
+    } catch {}
   };
 
   useFocusEffect(
@@ -87,7 +87,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
 
   const projectNameOf = (id: string | null) => projects.find((p) => p.id === id)?.name;
 
-  // Project scope first, then the mine/others split.
   const scoped = projectId
     ? payments.filter((p) => p.projectId === projectId)
     : projectFilter === "general"
@@ -134,26 +133,26 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
     if (!amount || isNaN(Number(amount))) return Toast.show({ type: "error", text1: "Enter a valid amount" });
 
     setSubmitting(true);
-    const { error } = await paymentsApi.logPayment({
-      direction,
-      counterparty_type: cpType,
-      counterparty_id: cpId,
-      counterparty_name: cpName,
-      amount,
-      payment_date: new Date().toISOString().split("T")[0],
-      description: description || undefined,
-      project_id: formProjectId || undefined,
-    });
-    setSubmitting(false);
-
-    if (error) {
-      Toast.show({ type: "error", text1: "Failed to save payment" });
-    } else {
+    try {
+      await apiClient.post("/api/payments", {
+        direction,
+        counterparty_type: cpType,
+        counterparty_id: cpId,
+        counterparty_name: cpName,
+        amount,
+        payment_date: new Date().toISOString().split("T")[0],
+        description: description || undefined,
+        project_id: formProjectId || undefined,
+      });
       Toast.show({ type: "success", text1: "Payment saved" });
       setLastProjectId(formProjectId);
       setModalVisible(false);
       resetForm();
       fetchData();
+    } catch {
+      Toast.show({ type: "error", text1: "Failed to save payment" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -167,7 +166,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#F8FAFC" : "#0F172A"} />
         }
       >
-        {/* Totals */}
         <View className="flex-row gap-2 mb-5">
           <View className="flex-1 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-3 rounded-xl">
             <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">RECEIVED</Text>
@@ -191,7 +189,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
 
         <Button title="+  Add Payment" onPress={openModal} className="mb-5" />
 
-        {/* All vs General — only meaningful outside a project */}
         {!projectId && (
           <View className="flex-row bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-3">
             {(
@@ -304,7 +301,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
       </ScrollView>
 
       <CustomModal visible={modalVisible} onClose={() => setModalVisible(false)} title="Add Payment">
-        {/* Direction */}
         <View className="flex-row mb-4 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
           {(["paid", "received"] as const).map((d) => (
             <Pressable
@@ -321,7 +317,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
           ))}
         </View>
 
-        {/* Project — locked when opened from inside a project */}
         <Text className="text-xs text-slate-500 dark:text-slate-400 mb-1">Project</Text>
         {projectId ? (
           <View className="border rounded-lg p-3 mb-3 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 flex-row items-center gap-2">
@@ -352,7 +347,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
           </ScrollView>
         )}
 
-        {/* Counterparty type */}
         <Text className="text-xs text-slate-500 dark:text-slate-400 mb-1">
           {direction === "paid" ? "Paid to" : "Received from"}
         </Text>
@@ -374,7 +368,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
           ))}
         </View>
 
-        {/* Counterparty entity */}
         {cpType ? (
           listFor(cpType).length === 0 ? (
             <Text className="text-xs italic text-slate-400 dark:text-slate-500 mb-3">
@@ -402,7 +395,6 @@ export function PaymentsView({ projectId, projectName, embedded = false }: Props
 
         <Input label="Amount ($)" value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="0.00" />
 
-        {/* Non-editable date, auto today */}
         <Text className="text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Date</Text>
         <View className="border rounded-lg p-3.5 mb-4 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
           <Text className="text-[15px] text-slate-500 dark:text-slate-400">{todayLabel} (today)</Text>

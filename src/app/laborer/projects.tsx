@@ -8,8 +8,8 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
 import { authClient } from "../../lib/auth-client";
-import { projectsApi } from "../../api/projects";
-import { attendanceApi } from "../../api/attendance";
+import { apiClient } from "../../lib/http-client";
+import { MarkAttendanceSchema } from "../../schemas";
 
 export default function LaborerProjectsScreen() {
   const isDark = useColorScheme() === "dark";
@@ -23,12 +23,15 @@ export default function LaborerProjectsScreen() {
   const fetchData = async () => {
     if (!session?.user?.id) return;
     try {
-      const [projectsRes, attendanceRes] = await Promise.all([
-        projectsApi.getProjects("laborer", session.user.id),
-        attendanceApi.getLaborerAttendanceHistory(session.user.id),
+      const [projectsRes, attendanceRes]: any = await Promise.all([
+        apiClient.get("/api/projects"),
+        apiClient.get("/api/attendance"),
       ]);
-      if (projectsRes.data) setProjects(projectsRes.data.map((r: any) => r.projects));
-      if (attendanceRes.data) setAttendance(attendanceRes.data);
+      if (projectsRes.data) {
+        setProjects(projectsRes.data.map((r: any) => r.projects || r));
+      }
+      const attendanceList = attendanceRes.data?.data || attendanceRes.data || [];
+      setAttendance(attendanceList);
     } catch (e) {
       console.error(e);
     }
@@ -50,14 +53,28 @@ export default function LaborerProjectsScreen() {
     if (!session?.user?.id) return;
     setLoadingProjectId(projectId);
     const today = new Date().toISOString().split("T")[0];
-    const res = await attendanceApi.markAttendance({ project_id: projectId, work_date: today, action });
-    if (res.error) {
-      Toast.show({ type: "error", text1: "Error", text2: `Could not ${action === "check_in" ? "clock in" : "clock out"}.` });
-    } else {
-      Toast.show({ type: "success", text1: "Success", text2: `Successfully ${action === "check_in" ? "clocked in" : "clocked out"}!` });
+    try {
+      const parsed = MarkAttendanceSchema.parse({
+        project_id: projectId,
+        work_date: today,
+        action,
+      });
+      await apiClient.post("/api/attendance", parsed);
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: `Successfully ${action === "check_in" ? "clocked in" : "clocked out"}!`,
+      });
       await fetchData();
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: e.message || `Could not ${action === "check_in" ? "clock in" : "clock out"}.`,
+      });
+    } finally {
+      setLoadingProjectId(null);
     }
-    setLoadingProjectId(null);
   };
 
   return (

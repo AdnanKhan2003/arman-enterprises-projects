@@ -6,7 +6,7 @@ import {
   UpdateLedgerInvoiceSchema,
   DeleteLedgerInvoiceSchema,
   LedgerInvoiceQuerySchema,
-} from "../../api/ledgerInvoices";
+} from "../../schemas/ledger-invoice";
 import {
   withErrorHandling,
   requireAuth,

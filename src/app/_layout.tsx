@@ -1,4 +1,5 @@
 import ThemeProvider from "@/components/ThemeProvider";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import Toast from "react-native-toast-message";
@@ -6,6 +7,7 @@ import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../../global.css";
 import { authClient } from "../lib/auth-client";
+import { queryClient } from "../lib/query-client";
 
 export { RootErrorBoundary as ErrorBoundary } from "@/components/RootErrorBoundary";
 
@@ -47,7 +49,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <SafeAreaProvider>
           <Stack
@@ -63,6 +65,6 @@ export default function RootLayout() {
         </SafeAreaProvider>
       </ThemeProvider>
       <Toast />
-    </>
+    </QueryClientProvider>
   );
 }

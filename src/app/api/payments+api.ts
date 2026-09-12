@@ -1,7 +1,7 @@
 import { db } from "../../db";
 import { payments } from "../../db/schema";
 import { count, desc, or, eq, and } from "drizzle-orm";
-import { LogPaymentSchema, PaymentsQuerySchema } from "../../api/payments";
+import { LogPaymentSchema, PaymentsQuerySchema } from "../../schemas/payment";
 import {
   withErrorHandling,
   requireAuth,

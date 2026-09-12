@@ -5,7 +5,7 @@ import {
   CreateContactSchema,
   UpdateContactSchema,
   DeleteContactSchema,
-} from "../../api/contact";
+} from "../../schemas/contact";
 import {
   withErrorHandling,
   requireAuth,
