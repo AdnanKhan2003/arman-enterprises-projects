@@ -26,11 +26,6 @@ export const approvalStatusEnum = pgEnum("approval_status", [
   "Approved",
   "Rejected",
 ]);
-export const invoiceTypeEnum = pgEnum("invoice_type", [
-  "Expense",
-  "Income",
-  "General",
-]);
 
 // BETTER AUTH CORE TABLES
 export const users = pgTable("user", {
@@ -191,26 +186,6 @@ export const attendance = pgTable(
     index("attendance_work_date_idx").on(table.workDate),
     index("attendance_approval_status_idx").on(table.approvalStatus),
     index("attendance_laborer_date_idx").on(table.laborerId, table.workDate),
-  ],
-);
-
-export const invoices = pgTable(
-  "invoices",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    contractorId: text("contractor_id").references(() => users.id).notNull(),
-    projectId: uuid("project_id").references(() => projects.id),
-    clientId: uuid("client_id").references(() => clients.id),
-    thirdPartyName: text("third_party_name"),
-    type: invoiceTypeEnum("type").notNull(),
-    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-    description: text("description"),
-    issueDate: date("issue_date").notNull(),
-  },
-  (table) => [
-    index("invoices_contractor_id_idx").on(table.contractorId),
-    index("invoices_project_id_idx").on(table.projectId),
-    index("invoices_issue_date_idx").on(table.issueDate),
   ],
 );
 
