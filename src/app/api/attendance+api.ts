@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { attendance, projects, users } from "../../db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { count, eq, desc, and } from "drizzle-orm";
 import { MarkAttendanceSchema, ReviewAttendanceSchema } from "../../api/attendance";
 import {
   withErrorHandling,
@@ -9,6 +9,7 @@ import {
   apiError,
   apiResponse,
 } from "../../lib/api-response";
+import { parsePagination, buildPaginatedResponse } from "../../lib/pagination";
 import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../lib/http";
 
 export const GET = withErrorHandling(async (request: Request) => {
@@ -17,26 +18,37 @@ export const GET = withErrorHandling(async (request: Request) => {
   const role = session.user.role;
 
   const url = new URL(request.url);
+  const { limit, offset } = parsePagination(url);
   const projectId = url.searchParams.get("projectId");
 
   if (role === "contractor") {
-    const rows = await db
-      .select({
-        record: attendance,
-        laborer: users,
-        project: projects,
-      })
-      .from(attendance)
-      .innerJoin(users, eq(attendance.laborerId, users.id))
-      .innerJoin(projects, eq(attendance.projectId, projects.id))
-      .where(
-        and(
-          eq(projects.contractorId, userId),
-          eq(attendance.approvalStatus, "Pending"),
-          ...(projectId ? [eq(attendance.projectId, projectId)] : []),
-        ),
-      )
-      .orderBy(desc(attendance.workDate));
+    const whereClause = and(
+      eq(projects.contractorId, userId),
+      eq(attendance.approvalStatus, "Pending"),
+      ...(projectId ? [eq(attendance.projectId, projectId)] : []),
+    );
+
+    const [totalResult, rows] = await Promise.all([
+      db
+        .select({ count: count() })
+        .from(attendance)
+        .innerJoin(users, eq(attendance.laborerId, users.id))
+        .innerJoin(projects, eq(attendance.projectId, projects.id))
+        .where(whereClause),
+      db
+        .select({
+          record: attendance,
+          laborer: users,
+          project: projects,
+        })
+        .from(attendance)
+        .innerJoin(users, eq(attendance.laborerId, users.id))
+        .innerJoin(projects, eq(attendance.projectId, projects.id))
+        .where(whereClause)
+        .orderBy(desc(attendance.workDate))
+        .limit(limit)
+        .offset(offset),
+    ]);
 
     const formatted = rows.map((r: any) => ({
       ...r.record,
@@ -44,25 +56,45 @@ export const GET = withErrorHandling(async (request: Request) => {
       project: { name: r.project.name },
     }));
 
-    return apiResponse(OK, formatted, "Attendance records retrieved successfully");
+    const total = totalResult[0]?.count ?? 0;
+    const paginated = buildPaginatedResponse(formatted, total, limit, offset);
+
+    return apiResponse(OK, paginated, "Attendance records retrieved successfully");
   }
 
-  const rows = await db
-    .select({
-      record: attendance,
-      project: projects,
-    })
-    .from(attendance)
-    .innerJoin(projects, eq(attendance.projectId, projects.id))
-    .where(eq(attendance.laborerId, userId))
-    .orderBy(desc(attendance.workDate));
+  const whereClause = and(
+    eq(attendance.laborerId, userId),
+    ...(projectId ? [eq(attendance.projectId, projectId)] : []),
+  );
+
+  const [totalResult, rows] = await Promise.all([
+    db
+      .select({ count: count() })
+      .from(attendance)
+      .innerJoin(projects, eq(attendance.projectId, projects.id))
+      .where(whereClause),
+    db
+      .select({
+        record: attendance,
+        project: projects,
+      })
+      .from(attendance)
+      .innerJoin(projects, eq(attendance.projectId, projects.id))
+      .where(whereClause)
+      .orderBy(desc(attendance.workDate))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const formatted = rows.map((r: any) => ({
     ...r.record,
     project: { name: r.project.name },
   }));
 
-  return apiResponse(OK, formatted, "Attendance records retrieved successfully");
+  const total = totalResult[0]?.count ?? 0;
+  const paginated = buildPaginatedResponse(formatted, total, limit, offset);
+
+  return apiResponse(OK, paginated, "Attendance records retrieved successfully");
 });
 
 export const POST = withErrorHandling(async (request: Request) => {

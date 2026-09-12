@@ -1,12 +1,13 @@
 import { db } from "../../db";
 import { payments } from "../../db/schema";
-import { desc, or, eq } from "drizzle-orm";
+import { count, desc, or, eq, and } from "drizzle-orm";
 import { LogPaymentSchema } from "../../api/payments";
 import {
   withErrorHandling,
   requireAuth,
   apiResponse,
 } from "../../lib/api-response";
+import { parsePagination, buildPaginatedResponse } from "../../lib/pagination";
 import { OK, CREATED } from "../../lib/http";
 
 type Role = "contractor" | "laborer";
@@ -16,16 +17,41 @@ export const GET = withErrorHandling(async (request: Request) => {
   const userId = session.user.id;
   const role = session.user.role;
 
-  const rows =
+  const url = new URL(request.url);
+  const { limit, offset } = parsePagination(url);
+  const projectId = url.searchParams.get("projectId");
+
+  const whereClause =
     role === "contractor"
-      ? await db.select().from(payments).orderBy(desc(payments.paymentDate))
-      : await db
+      ? (projectId ? eq(payments.projectId, projectId) : undefined)
+      : (projectId
+          ? and(eq(payments.projectId, projectId), or(eq(payments.fromId, userId), eq(payments.toId, userId)))
+          : or(eq(payments.fromId, userId), eq(payments.toId, userId)));
+
+  const [totalResult, rows] = await Promise.all([
+    whereClause
+      ? db.select({ count: count() }).from(payments).where(whereClause)
+      : db.select({ count: count() }).from(payments),
+    whereClause
+      ? db
           .select()
           .from(payments)
-          .where(or(eq(payments.fromId, userId), eq(payments.toId, userId)))
-          .orderBy(desc(payments.paymentDate));
+          .where(whereClause)
+          .orderBy(desc(payments.paymentDate))
+          .limit(limit)
+          .offset(offset)
+      : db
+          .select()
+          .from(payments)
+          .orderBy(desc(payments.paymentDate))
+          .limit(limit)
+          .offset(offset),
+  ]);
 
-  return apiResponse(OK, rows, "Payments retrieved successfully");
+  const total = totalResult[0]?.count ?? 0;
+  const paginated = buildPaginatedResponse(rows, total, limit, offset);
+
+  return apiResponse(OK, paginated, "Payments retrieved successfully");
 });
 
 export const POST = withErrorHandling(async (request: Request) => {

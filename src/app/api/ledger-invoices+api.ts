@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { ledgerInvoices, projects } from "../../db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { count, eq, desc, and } from "drizzle-orm";
 import { CreateLedgerInvoiceSchema, UpdateLedgerInvoiceSchema } from "../../api/ledgerInvoices";
 import {
   withErrorHandling,
@@ -9,6 +9,7 @@ import {
   apiError,
   apiResponse,
 } from "../../lib/api-response";
+import { parsePagination, buildPaginatedResponse } from "../../lib/pagination";
 import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../lib/http";
 
 export const GET = withErrorHandling(async (request: Request) => {
@@ -17,25 +18,34 @@ export const GET = withErrorHandling(async (request: Request) => {
   const userId = session.user.id;
 
   const url = new URL(request.url);
+  const { limit, offset } = parsePagination(url);
   const projectId = url.searchParams.get("projectId");
 
-  const rows = await db
-    .select({ record: ledgerInvoices, project: projects })
-    .from(ledgerInvoices)
-    .leftJoin(projects, eq(ledgerInvoices.projectId, projects.id))
-    .where(
-      projectId
-        ? and(eq(ledgerInvoices.contractorId, userId), eq(ledgerInvoices.projectId, projectId))
-        : eq(ledgerInvoices.contractorId, userId),
-    )
-    .orderBy(desc(ledgerInvoices.createdAt));
+  const whereClause = projectId
+    ? and(eq(ledgerInvoices.contractorId, userId), eq(ledgerInvoices.projectId, projectId))
+    : eq(ledgerInvoices.contractorId, userId);
+
+  const [totalResult, rows] = await Promise.all([
+    db.select({ count: count() }).from(ledgerInvoices).where(whereClause),
+    db
+      .select({ record: ledgerInvoices, project: projects })
+      .from(ledgerInvoices)
+      .leftJoin(projects, eq(ledgerInvoices.projectId, projects.id))
+      .where(whereClause)
+      .orderBy(desc(ledgerInvoices.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const formatted = rows.map((r) => ({
     ...r.record,
     project: r.project ? { id: r.project.id, name: r.project.name } : null,
   }));
 
-  return apiResponse(OK, formatted, "Ledger invoices retrieved successfully");
+  const total = totalResult[0]?.count ?? 0;
+  const paginated = buildPaginatedResponse(formatted, total, limit, offset);
+
+  return apiResponse(OK, paginated, "Ledger invoices retrieved successfully");
 });
 
 export const POST = withErrorHandling(async (request: Request) => {

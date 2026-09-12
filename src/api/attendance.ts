@@ -15,46 +15,47 @@ export const ReviewAttendanceSchema = z.object({
 });
 
 export const attendanceApi = {
-  /**
-   * Mark daily attendance (Laborer action)
-   */
   async markAttendance(data: {
     project_id: string;
     laborer_id?: string;
-    work_date: string; // Format: YYYY-MM-DD
+    work_date: string;
     action: "check_in" | "check_out";
   }) {
     try {
       const parsed = MarkAttendanceSchema.safeParse(data);
       if (!parsed.success) throw parsed.error;
 
-      const json = await apiFetch('/api/attendance', {
-        method: 'POST',
-        body: JSON.stringify(parsed.data)
+      const json = await apiFetch("/api/attendance", {
+        method: "POST",
+        body: JSON.stringify(parsed.data),
       });
-      
-      return { data: json.data, error: null };
+
+      return { data: json.data || json, error: null };
     } catch (error) {
       return { data: null, error };
     }
   },
 
-  /**
-   * Fetch all pending attendance for all projects (Contractor action)
-   */
-  async getPendingAttendance(projectId?: string) {
+  async getPendingAttendance(params?: { projectId?: string; limit?: number; offset?: number } | string) {
     try {
-      const qs = projectId ? `?projectId=${projectId}` : "";
+      const searchParams = new URLSearchParams();
+      if (typeof params === "string") {
+        searchParams.set("projectId", params);
+      } else if (params) {
+        if (params.projectId) searchParams.set("projectId", params.projectId);
+        if (params.limit) searchParams.set("limit", String(params.limit));
+        if (params.offset) searchParams.set("offset", String(params.offset));
+      }
+
+      const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
       const json = await apiFetch(`/api/attendance${qs}`);
-      return { data: json.data, error: null };
+      const data = json.data?.items || json.data;
+      return { data, pagination: json.data?.pagination || null, error: null };
     } catch (error) {
-      return { data: null, error };
+      return { data: null, pagination: null, error };
     }
   },
 
-  /**
-   * Approve or reject an attendance record (Contractor action)
-   */
   async reviewAttendance(
     attendanceId: string,
     contractorId: string,
@@ -64,26 +65,32 @@ export const attendanceApi = {
       const parsed = ReviewAttendanceSchema.safeParse({ attendanceId, contractorId, status });
       if (!parsed.success) throw parsed.error;
 
-      const json = await apiFetch('/api/attendance', {
-        method: 'PATCH',
-        body: JSON.stringify(parsed.data)
+      const json = await apiFetch("/api/attendance", {
+        method: "PATCH",
+        body: JSON.stringify(parsed.data),
       });
-      
-      return { data: json.data, error: null };
+
+      return { data: json.data || json, error: null };
     } catch (error) {
       return { data: null, error };
     }
   },
 
-  /**
-   * Fetch a laborer's attendance history (Laborer action)
-   */
-  async getLaborerAttendanceHistory(laborerId: string) {
+  async getLaborerAttendanceHistory(params?: { laborerId?: string; projectId?: string; limit?: number; offset?: number } | string) {
     try {
-      const json = await apiFetch('/api/attendance');
-      return { data: json.data, error: null };
+      const searchParams = new URLSearchParams();
+      if (typeof params === "object" && params) {
+        if (params.projectId) searchParams.set("projectId", params.projectId);
+        if (params.limit) searchParams.set("limit", String(params.limit));
+        if (params.offset) searchParams.set("offset", String(params.offset));
+      }
+
+      const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+      const json = await apiFetch(`/api/attendance${qs}`);
+      const data = json.data?.items || json.data;
+      return { data, pagination: json.data?.pagination || null, error: null };
     } catch (error) {
-      return { data: null, error };
+      return { data: null, pagination: null, error };
     }
-  }
+  },
 };

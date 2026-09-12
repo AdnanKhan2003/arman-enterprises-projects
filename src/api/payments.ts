@@ -18,36 +18,31 @@ export const LogPaymentSchema = z.object({
 });
 
 export const paymentsApi = {
-  /**
-   * List payments the current user is involved in (as payer or payee).
-   */
-  async getPayments() {
+  async getPayments(params?: { limit?: number; offset?: number; projectId?: string }) {
     try {
-      const json = await apiFetch(`/api/payments`);
-      return { data: json.data, error: null };
+      const searchParams = new URLSearchParams();
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      if (params?.offset) searchParams.set("offset", String(params.offset));
+      if (params?.projectId) searchParams.set("projectId", params.projectId);
+
+      const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+      const json = await apiFetch(`/api/payments${qs}`);
+      const data = json.data?.items || json.data;
+      return { data, pagination: json.data?.pagination || null, error: null };
     } catch (error) {
-      return { data: null, error };
+      return { data: null, pagination: null, error };
     }
   },
 
-  /**
-   * Get the counterparties the current user may pick when logging a payment.
-   * Contractor -> { laborers, clients, vendors }
-   * Laborer    -> { contractors, clients, vendors }
-   */
   async getParties() {
     try {
       const json = await apiFetch(`/api/payments/parties`);
-      return { data: json, error: null };
+      return { data: json.data || json, error: null };
     } catch (error) {
       return { data: null, error };
     }
   },
 
-  /**
-   * Log a payment. The current user is the implicit self-side; the server
-   * places them on from/to based on direction.
-   */
   async logPayment(data: z.infer<typeof LogPaymentSchema>) {
     try {
       const parsed = LogPaymentSchema.safeParse(data);
@@ -56,7 +51,7 @@ export const paymentsApi = {
         method: "POST",
         body: JSON.stringify(parsed.data),
       });
-      return { data: json.data, error: null };
+      return { data: json.data || json, error: null };
     } catch (error) {
       return { data: null, error };
     }

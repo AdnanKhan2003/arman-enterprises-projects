@@ -29,13 +29,23 @@ export const UpdateLedgerInvoiceSchema = z.object({
 export type LedgerInvoiceItem = z.infer<typeof LedgerInvoiceItemSchema>;
 
 export const ledgerInvoicesApi = {
-  async getLedgerInvoices(projectId?: string) {
+  async getLedgerInvoices(params?: { projectId?: string; limit?: number; offset?: number } | string) {
     try {
-      const qs = projectId ? `?projectId=${projectId}` : "";
+      const searchParams = new URLSearchParams();
+      if (typeof params === "string") {
+        searchParams.set("projectId", params);
+      } else if (params) {
+        if (params.projectId) searchParams.set("projectId", params.projectId);
+        if (params.limit) searchParams.set("limit", String(params.limit));
+        if (params.offset) searchParams.set("offset", String(params.offset));
+      }
+
+      const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
       const json = await apiFetch(`/api/ledger-invoices${qs}`);
-      return { data: json.data, error: null };
+      const data = json.data?.items || json.data;
+      return { data, pagination: json.data?.pagination || null, error: null };
     } catch (error) {
-      return { data: null, error };
+      return { data: null, pagination: null, error };
     }
   },
 
@@ -47,7 +57,7 @@ export const ledgerInvoicesApi = {
         method: "POST",
         body: JSON.stringify(parsed.data),
       });
-      return { data: json.data, error: null };
+      return { data: json.data || json, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -61,7 +71,7 @@ export const ledgerInvoicesApi = {
         method: "PUT",
         body: JSON.stringify(parsed.data),
       });
-      return { data: json.data, error: null };
+      return { data: json.data || json, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -69,10 +79,10 @@ export const ledgerInvoicesApi = {
 
   async deleteLedgerInvoice(id: string) {
     try {
-      await apiFetch(`/api/ledger-invoices?id=${id}`, { method: "DELETE" });
-      return { success: true, error: null };
+      const json = await apiFetch(`/api/ledger-invoices?id=${id}`, { method: "DELETE" });
+      return { success: true, data: json.data || json, error: null };
     } catch (error) {
-      return { success: false, error };
+      return { success: false, data: null, error };
     }
   },
 };
