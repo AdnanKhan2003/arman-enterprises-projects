@@ -1,20 +1,20 @@
-import { auth } from "../../lib/auth";
 import { db } from "../../db";
 import { ledgerInvoices, projects } from "../../db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { CreateLedgerInvoiceSchema, UpdateLedgerInvoiceSchema } from "../../api/ledgerInvoices";
+import {
+  withErrorHandling,
+  requireAuth,
+  requireRole,
+  apiError,
+  apiResponse,
+} from "../../lib/api-response";
+import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../lib/http";
 
-async function requireContractor(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return { error: new Response("Unauthorized", { status: 401 }) };
-  if (session.user.role !== "contractor")
-    return { error: new Response("Forbidden", { status: 403 }) };
-  return { userId: session.user.id };
-}
-
-export async function GET(request: Request) {
-  const { userId, error } = await requireContractor(request);
-  if (error) return error;
+export const GET = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
+  requireRole(session, "contractor");
+  const userId = session.user.id;
 
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
@@ -25,8 +25,8 @@ export async function GET(request: Request) {
     .leftJoin(projects, eq(ledgerInvoices.projectId, projects.id))
     .where(
       projectId
-        ? and(eq(ledgerInvoices.contractorId, userId!), eq(ledgerInvoices.projectId, projectId))
-        : eq(ledgerInvoices.contractorId, userId!),
+        ? and(eq(ledgerInvoices.contractorId, userId), eq(ledgerInvoices.projectId, projectId))
+        : eq(ledgerInvoices.contractorId, userId),
     )
     .orderBy(desc(ledgerInvoices.createdAt));
 
@@ -35,35 +35,35 @@ export async function GET(request: Request) {
     project: r.project ? { id: r.project.id, name: r.project.name } : null,
   }));
 
-  return Response.json({ data: formatted });
-}
+  return apiResponse(OK, formatted, "Ledger invoices retrieved successfully");
+});
 
-export async function POST(request: Request) {
-  const { userId, error } = await requireContractor(request);
-  if (error) return error;
+export const POST = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
+  requireRole(session, "contractor");
+  const userId = session.user.id;
 
   const body = await request.json();
-  const parsed = CreateLedgerInvoiceSchema.safeParse(body);
-  if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
+  const parsed = CreateLedgerInvoiceSchema.parse(body);
 
-  const { title, scope, format, items, project_id } = parsed.data;
+  const { title, scope, format, items, project_id } = parsed;
   const inserted = await db
     .insert(ledgerInvoices)
-    .values({ contractorId: userId!, title, scope, format, items, projectId: project_id || null })
+    .values({ contractorId: userId, title, scope, format, items, projectId: project_id || null })
     .returning();
 
-  return Response.json({ data: inserted[0] });
-}
+  return apiResponse(CREATED, inserted[0], `Invoice ${inserted[0].title || inserted[0].id} created successfully`);
+});
 
-export async function PUT(request: Request) {
-  const { userId, error } = await requireContractor(request);
-  if (error) return error;
+export const PUT = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
+  requireRole(session, "contractor");
+  const userId = session.user.id;
 
   const body = await request.json();
-  const parsed = UpdateLedgerInvoiceSchema.safeParse(body);
-  if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
+  const parsed = UpdateLedgerInvoiceSchema.parse(body);
 
-  const { id, title, scope, format, items, project_id } = parsed.data;
+  const { id, title, scope, format, items, project_id } = parsed;
   const updated = await db
     .update(ledgerInvoices)
     .set({
@@ -74,24 +74,30 @@ export async function PUT(request: Request) {
       ...(project_id !== undefined ? { projectId: project_id || null } : {}),
       updatedAt: new Date(),
     })
-    .where(and(eq(ledgerInvoices.id, id), eq(ledgerInvoices.contractorId, userId!)))
+    .where(and(eq(ledgerInvoices.id, id), eq(ledgerInvoices.contractorId, userId)))
     .returning();
 
-  if (updated.length === 0) return new Response("Not found", { status: 404 });
-  return Response.json({ data: updated[0] });
-}
+  if (updated.length === 0) {
+    throw apiError(NOT_FOUND, "Invoice not found");
+  }
 
-export async function DELETE(request: Request) {
-  const { userId, error } = await requireContractor(request);
-  if (error) return error;
+  return apiResponse(OK, updated[0], `Invoice ${updated[0].title || updated[0].id} updated successfully`);
+});
+
+export const DELETE = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
+  requireRole(session, "contractor");
+  const userId = session.user.id;
 
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
-  if (!id) return new Response("Missing id parameter", { status: 400 });
+  if (!id) {
+    throw apiError(BAD_REQUEST, "Missing id parameter");
+  }
 
   await db
     .delete(ledgerInvoices)
-    .where(and(eq(ledgerInvoices.id, id), eq(ledgerInvoices.contractorId, userId!)));
+    .where(and(eq(ledgerInvoices.id, id), eq(ledgerInvoices.contractorId, userId)));
 
-  return Response.json({ success: true });
-}
+  return apiResponse(OK, { success: true }, "Invoice deleted successfully");
+});

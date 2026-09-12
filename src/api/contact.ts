@@ -18,9 +18,6 @@ export const DeleteContactSchema = z.object({
 });
 
 export const contactsApi = {
-  /**
-   * Create a new Client
-   */
   async createClient(data: {
     name: string;
     address?: string;
@@ -35,12 +32,9 @@ export const contactsApi = {
       body: JSON.stringify({ type: 'client', ...parsed.data }),
     });
 
-    return json;
+    return json.data || json;
   },
 
-  /**
-   * Create a new Vendor
-   */
   async createVendor(data: {
     name: string;
     address?: string;
@@ -56,28 +50,20 @@ export const contactsApi = {
       body: JSON.stringify({ type: 'vendor', ...parsed.data }),
     });
 
-    return json;
+    return json.data || json;
   },
 
-  /**
-   * Fetch all clients and vendors managed by a specific contractor.
-   */
   async getContractorContacts(contractorId: string) {
     const json = await apiFetch('/api/contacts');
-    return json as { clients: any[], vendors: any[] };
+    return (json.data || json) as { clients: any[]; vendors: any[] };
   },
 
-  /**
-   * Fetch all clients only
-   */
   async getClients(contractorId: string) {
     const json = await apiFetch('/api/contacts');
-    return { data: json.clients };
+    const data = json.data || json;
+    return { data: data.clients };
   },
 
-  /**
-   * Update an existing Client
-   */
   async updateClient(data: {
     id: string;
     name: string;
@@ -92,12 +78,9 @@ export const contactsApi = {
       method: 'PATCH',
       body: JSON.stringify({ type: 'client', ...parsed.data }),
     });
-    return json;
+    return json.data || json;
   },
 
-  /**
-   * Update an existing Vendor
-   */
   async updateVendor(data: {
     id: string;
     name: string;
@@ -113,32 +96,27 @@ export const contactsApi = {
       method: 'PATCH',
       body: JSON.stringify({ type: 'vendor', ...parsed.data }),
     });
-    return json;
+    return json.data || json;
   },
 
-  /**
-   * Delete a Client
-   */
   async deleteClient(id: string) {
-    const parsed = DeleteContactSchema.safeParse({ id });
-    if (!parsed.success) throw parsed.error;
-
     const json = await apiFetch(`/api/contacts?id=${id}&type=client`, {
       method: 'DELETE',
     });
-    return json;
+    return json.data || json;
   },
 
-  /**
-   * Delete a Vendor
-   */
   async deleteVendor(id: string) {
-    const parsed = DeleteContactSchema.safeParse({ id });
-    if (!parsed.success) throw parsed.error;
-
     const json = await apiFetch(`/api/contacts?id=${id}&type=vendor`, {
       method: 'DELETE',
     });
-    return json;
-  }
+    return json.data || json;
+  },
+
+  async deleteContact(id: string, type: 'client' | 'vendor') {
+    const json = await apiFetch(`/api/contacts?id=${id}&type=${type}`, {
+      method: 'DELETE',
+    });
+    return json.data || json;
+  },
 };

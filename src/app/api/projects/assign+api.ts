@@ -1,26 +1,27 @@
-import { auth } from "../../../lib/auth";
 import { db } from "../../../db";
 import { projectAssignments } from "../../../db/schema";
 import { AssignLaborerSchema } from "../../../api/projects";
+import {
+  withErrorHandling,
+  requireAuth,
+  requireRole,
+  apiResponse,
+} from "../../../lib/api-response";
+import { CREATED } from "../../../lib/http";
 
-export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return new Response("Unauthorized", { status: 401 });
-
-  if (session.user.role !== "contractor") {
-    return new Response("Forbidden", { status: 403 });
-  }
+export const POST = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
+  requireRole(session, "contractor");
 
   const body = await request.json();
-  const parsed = AssignLaborerSchema.safeParse(body);
-  if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
-  
-  const { projectId, laborerId } = parsed.data;
-  
-  await db.insert(projectAssignments).values({ 
-    projectId, 
-    laborerId 
+  const parsed = AssignLaborerSchema.parse(body);
+
+  const { projectId, laborerId } = parsed;
+
+  await db.insert(projectAssignments).values({
+    projectId,
+    laborerId,
   });
-  
-  return Response.json({ data: { success: true } });
-}
+
+  return apiResponse(CREATED, { success: true }, "Laborer assigned to project successfully");
+});

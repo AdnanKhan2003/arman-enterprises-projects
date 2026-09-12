@@ -1,11 +1,21 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../../db";
-import { clients, projectAssignments, projects } from "../../../db/schema";
-import { auth } from "../../../lib/auth";
+import { clients, projects } from "../../../db/schema";
+import {
+  withErrorHandling,
+  requireAuth,
+  apiError,
+  apiResponse,
+} from "../../../lib/api-response";
+import { OK, BAD_REQUEST, NOT_FOUND } from "../../../lib/http";
 
-export async function GET(request: Request, { id }: Record<string, string>) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return new Response("Unauthorized", { status: 401 });
+export const GET = withErrorHandling(async (request: Request, context: Record<string, string>) => {
+  await requireAuth(request);
+  const id = context?.id;
+
+  if (!id) {
+    throw apiError(BAD_REQUEST, "Missing project ID");
+  }
 
   const rows = await db
     .select({
@@ -16,8 +26,9 @@ export async function GET(request: Request, { id }: Record<string, string>) {
     .leftJoin(clients, eq(projects.clientId, clients.id))
     .where(eq(projects.id, id));
 
-  if (rows.length === 0)
-    return new Response("Project not found", { status: 404 });
+  if (rows.length === 0) {
+    throw apiError(NOT_FOUND, "Project not found");
+  }
 
   const r = rows[0];
   const formatted = {
@@ -25,6 +36,5 @@ export async function GET(request: Request, { id }: Record<string, string>) {
     client: r.client ? { ...r.client } : null,
   };
 
-  return Response.json({ data: formatted });
-}
-
+  return apiResponse(OK, formatted, `Project ${formatted.name} retrieved successfully`);
+});

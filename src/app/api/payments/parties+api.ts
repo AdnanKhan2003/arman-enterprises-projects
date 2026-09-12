@@ -1,7 +1,12 @@
-import { auth } from "../../../lib/auth";
 import { db } from "../../../db";
 import { users, clients, vendors, projects, projectAssignments } from "../../../db/schema";
 import { eq, inArray } from "drizzle-orm";
+import {
+  withErrorHandling,
+  requireAuth,
+  apiResponse,
+} from "../../../lib/api-response";
+import { OK } from "../../../lib/http";
 
 const uniqById = <T extends { id: string }>(rows: T[]) => {
   const map = new Map<string, T>();
@@ -9,31 +14,30 @@ const uniqById = <T extends { id: string }>(rows: T[]) => {
   return Array.from(map.values());
 };
 
-export async function GET(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return new Response("Unauthorized", { status: 401 });
-
+export const GET = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
   const userId = session.user.id;
   const role = session.user.role;
 
   if (role === "contractor") {
-    // All laborers (matches the Laborers management screen), plus this
-    // contractor's own clients and vendors.
     const [laborerRows, clientRows, vendorRows] = await Promise.all([
       db.select({ id: users.id, name: users.name }).from(users).where(eq(users.role, "laborer")),
       db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.contractorId, userId)),
       db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq(vendors.contractorId, userId)),
     ]);
 
-    return Response.json({
-      role: "contractor",
-      laborers: uniqById(laborerRows),
-      clients: clientRows,
-      vendors: vendorRows,
-    });
+    return apiResponse(
+      OK,
+      {
+        role: "contractor",
+        laborers: uniqById(laborerRows),
+        clients: clientRows,
+        vendors: vendorRows,
+      },
+      "Parties retrieved successfully",
+    );
   }
 
-  // Laborer: contractors from their assigned projects, plus those contractors' clients/vendors.
   const contractorRows = await db
     .select({ id: users.id, name: users.name })
     .from(projectAssignments)
@@ -52,10 +56,14 @@ export async function GET(request: Request) {
           db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(inArray(vendors.contractorId, contractorIds)),
         ]);
 
-  return Response.json({
-    role: "laborer",
-    contractors: contractorsList,
-    clients: clientRows,
-    vendors: vendorRows,
-  });
-}
+  return apiResponse(
+    OK,
+    {
+      role: "laborer",
+      contractors: contractorsList,
+      clients: clientRows,
+      vendors: vendorRows,
+    },
+    "Parties retrieved successfully",
+  );
+});

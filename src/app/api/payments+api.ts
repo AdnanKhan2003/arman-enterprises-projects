@@ -1,20 +1,21 @@
-import { auth } from "../../lib/auth";
 import { db } from "../../db";
 import { payments } from "../../db/schema";
 import { desc, or, eq } from "drizzle-orm";
 import { LogPaymentSchema } from "../../api/payments";
+import {
+  withErrorHandling,
+  requireAuth,
+  apiResponse,
+} from "../../lib/api-response";
+import { OK, CREATED } from "../../lib/http";
 
 type Role = "contractor" | "laborer";
 
-export async function GET(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return new Response("Unauthorized", { status: 401 });
-
+export const GET = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
   const userId = session.user.id;
   const role = session.user.role;
 
-  // Contractor is the admin: sees every payment (the client splits them into
-  // "mine" vs "others"). Laborers see only payments they're involved in.
   const rows =
     role === "contractor"
       ? await db.select().from(payments).orderBy(desc(payments.paymentDate))
@@ -24,13 +25,11 @@ export async function GET(request: Request) {
           .where(or(eq(payments.fromId, userId), eq(payments.toId, userId)))
           .orderBy(desc(payments.paymentDate));
 
-  return Response.json({ data: rows });
-}
+  return apiResponse(OK, rows, "Payments retrieved successfully");
+});
 
-export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return new Response("Unauthorized", { status: 401 });
-
+export const POST = withErrorHandling(async (request: Request) => {
+  const session = await requireAuth(request);
   const role = (session.user.role as Role) || "contractor";
   const self = {
     type: role,
@@ -39,11 +38,10 @@ export async function POST(request: Request) {
   };
 
   const body = await request.json();
-  const parsed = LogPaymentSchema.safeParse(body);
-  if (!parsed.success) return new Response(parsed.error.message, { status: 400 });
+  const parsed = LogPaymentSchema.parse(body);
 
   const { direction, counterparty_type, counterparty_id, counterparty_name, amount, payment_date, description, project_id } =
-    parsed.data;
+    parsed;
 
   const counterparty = { type: counterparty_type, id: counterparty_id, name: counterparty_name };
   const from = direction === "paid" ? self : counterparty;
@@ -66,5 +64,5 @@ export async function POST(request: Request) {
     })
     .returning();
 
-  return Response.json({ data: inserted[0] });
-}
+  return apiResponse(CREATED, inserted[0], "Payment recorded successfully");
+});
