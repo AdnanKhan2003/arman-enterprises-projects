@@ -43,6 +43,13 @@
       "when": 1787140471003,
       "tag": "0005_ledger_project",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789213906898,
+      "tag": "0006_classy_ulik",
+      "breakpoints": true
     }
   ]
 }

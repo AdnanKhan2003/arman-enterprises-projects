@@ -1,0 +1,24 @@
+CREATE INDEX "accounts_user_id_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "attendance_laborer_id_idx" ON "attendance" USING btree ("laborer_id");--> statement-breakpoint
+CREATE INDEX "attendance_project_id_idx" ON "attendance" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "attendance_work_date_idx" ON "attendance" USING btree ("work_date");--> statement-breakpoint
+CREATE INDEX "attendance_approval_status_idx" ON "attendance" USING btree ("approval_status");--> statement-breakpoint
+CREATE INDEX "attendance_laborer_date_idx" ON "attendance" USING btree ("laborer_id","work_date");--> statement-breakpoint
+CREATE INDEX "clients_contractor_id_idx" ON "clients" USING btree ("contractor_id");--> statement-breakpoint
+CREATE INDEX "invoices_contractor_id_idx" ON "invoices" USING btree ("contractor_id");--> statement-breakpoint
+CREATE INDEX "invoices_project_id_idx" ON "invoices" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "invoices_issue_date_idx" ON "invoices" USING btree ("issue_date");--> statement-breakpoint
+CREATE INDEX "ledger_invoices_contractor_id_idx" ON "ledger_invoices" USING btree ("contractor_id");--> statement-breakpoint
+CREATE INDEX "ledger_invoices_project_id_idx" ON "ledger_invoices" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "ledger_invoices_created_at_idx" ON "ledger_invoices" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "payments_created_by_idx" ON "payments" USING btree ("created_by_id");--> statement-breakpoint
+CREATE INDEX "payments_from_id_idx" ON "payments" USING btree ("from_id");--> statement-breakpoint
+CREATE INDEX "payments_to_id_idx" ON "payments" USING btree ("to_id");--> statement-breakpoint
+CREATE INDEX "payments_project_id_idx" ON "payments" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "payments_payment_date_idx" ON "payments" USING btree ("payment_date");--> statement-breakpoint
+CREATE INDEX "project_assignments_laborer_id_idx" ON "project_assignments" USING btree ("laborer_id");--> statement-breakpoint
+CREATE INDEX "projects_contractor_id_idx" ON "projects" USING btree ("contractor_id");--> statement-breakpoint
+CREATE INDEX "projects_client_id_idx" ON "projects" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "projects_status_idx" ON "projects" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "sessions_user_id_idx" ON "session" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "vendors_contractor_id_idx" ON "vendors" USING btree ("contractor_id");
