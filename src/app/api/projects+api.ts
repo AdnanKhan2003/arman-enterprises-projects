@@ -2,13 +2,18 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../../db";
 import { clients, projectAssignments, projects, attendance, payments, ledgerInvoices } from "../../db/schema";
 import {
+  CreateProjectSchema,
+  UpdateProjectSchema,
+  DeleteProjectSchema,
+} from "../../api/projects";
+import {
   withErrorHandling,
   requireAuth,
   requireRole,
   apiError,
   apiResponse,
 } from "../../lib/api-response";
-import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../lib/http";
+import { OK, CREATED, NOT_FOUND } from "../../lib/http";
 
 export const GET = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
@@ -68,17 +73,16 @@ export const GET = withErrorHandling(async (request: Request) => {
 export const POST = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
   requireRole(session, "contractor");
-  const body = await request.json();
-  const { contractor_id, laborer_ids, ...data } = body;
+  const { name, description, location, client_id, laborer_ids } = CreateProjectSchema.parse(await request.json());
 
   const newProject = await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(projects)
       .values({
-        name: data.name,
-        description: data.description,
-        location: data.location,
-        clientId: data.client_id || null,
+        name,
+        description,
+        location,
+        clientId: client_id || null,
         contractorId: session.user.id,
       })
       .returning();
@@ -102,18 +106,9 @@ export const POST = withErrorHandling(async (request: Request) => {
 export const PATCH = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
   requireRole(session, "contractor");
-  const body = await request.json();
-  const { id, name, location, description, client_id, laborer_ids, status } = body;
+  const { id, name, location, description, client_id, laborer_ids, status } = UpdateProjectSchema.parse(await request.json());
 
-  if (!id) {
-    throw apiError(BAD_REQUEST, "Missing project id");
-  }
-
-  const statusOnly = status !== undefined && name === undefined;
-
-  if (!statusOnly && !name) {
-    throw apiError(BAD_REQUEST, "Missing required fields");
-  }
+  const statusOnly = status !== undefined && name === undefined && location === undefined && description === undefined && client_id === undefined && laborer_ids === undefined;
 
   const updated = await db.transaction(async (tx) => {
     const existing = await tx
@@ -132,10 +127,10 @@ export const PATCH = withErrorHandling(async (request: Request) => {
         statusOnly
           ? { status }
           : {
-              name,
-              location,
-              description,
-              clientId: client_id || null,
+              ...(name !== undefined ? { name } : {}),
+              ...(location !== undefined ? { location } : {}),
+              ...(description !== undefined ? { description } : {}),
+              ...(client_id !== undefined ? { clientId: client_id || null } : {}),
               ...(status !== undefined ? { status } : {}),
             },
       )
@@ -168,11 +163,7 @@ export const DELETE = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
   requireRole(session, "contractor");
   const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-
-  if (!id) {
-    throw apiError(BAD_REQUEST, "Missing project ID");
-  }
+  const { id } = DeleteProjectSchema.parse({ id: url.searchParams.get("id") });
 
   const deleted = await db.transaction(async (tx) => {
     const existing = await tx

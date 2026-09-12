@@ -3,24 +3,24 @@ import { db } from "../../../db";
 import { users, sessions, accounts, attendance, projectAssignments, payments } from "../../../db/schema";
 import { eq, and, or } from "drizzle-orm";
 import {
+  CreateLaborerSchema,
+  UpdateLaborerSchema,
+  DeleteLaborerSchema,
+} from "../../../api/laborer";
+import {
   withErrorHandling,
   requireAuth,
   requireRole,
   apiError,
   apiResponse,
 } from "../../../lib/api-response";
-import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../../lib/http";
+import { OK, CREATED, NOT_FOUND } from "../../../lib/http";
 
 export const POST = withErrorHandling(async (req: Request) => {
   const session = await requireAuth(req);
   requireRole(session, "contractor");
 
-  const body = await req.json();
-  const { name, email, password } = body;
-
-  if (!name || !email || !password) {
-    throw apiError(BAD_REQUEST, "Missing required fields");
-  }
+  const { name, email, password } = CreateLaborerSchema.parse(await req.json());
 
   const signUpReq = new Request(new URL("/api/auth/sign-up/email", req.url), {
     method: "POST",
@@ -60,12 +60,7 @@ export const PATCH = withErrorHandling(async (req: Request) => {
   const session = await requireAuth(req);
   requireRole(session, "contractor");
 
-  const body = await req.json();
-  const { id, name } = body;
-
-  if (!id || !name) {
-    throw apiError(BAD_REQUEST, "Missing required fields");
-  }
+  const { id, name } = UpdateLaborerSchema.parse(await req.json());
 
   const userToUpdate = await db
     .select()
@@ -87,11 +82,7 @@ export const DELETE = withErrorHandling(async (req: Request) => {
   requireRole(session, "contractor");
 
   const url = new URL(req.url);
-  const id = url.searchParams.get("id");
-
-  if (!id) {
-    throw apiError(BAD_REQUEST, "Missing laborer ID");
-  }
+  const { id } = DeleteLaborerSchema.parse({ id: url.searchParams.get("id") });
 
   const deleted = await db.transaction(async (tx) => {
     const userToDelete = await tx

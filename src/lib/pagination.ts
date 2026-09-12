@@ -1,3 +1,6 @@
+const DEFAULT_PAGE_LIMIT = 20;
+const MAX_PAGE_LIMIT = 100;
+
 type PaginationParams = {
   limit: number;
   offset: number;
@@ -17,8 +20,8 @@ type PaginatedData<T> = {
 
 function parsePagination(
   url: string | URL,
-  defaultLimit = 20,
-  maxLimit = 100,
+  defaultLimit = DEFAULT_PAGE_LIMIT,
+  maxLimit = MAX_PAGE_LIMIT,
 ): PaginationParams {
   const parsedUrl = typeof url === "string" ? new URL(url) : url;
   const rawLimit = parsedUrl.searchParams.get("limit");
@@ -50,5 +53,5 @@ function buildPaginatedResponse<T>(
   };
 }
 
+export { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, parsePagination, buildPaginatedResponse };
 export type { PaginationParams, PaginationMeta, PaginatedData };
-export { parsePagination, buildPaginatedResponse };

@@ -1,13 +1,13 @@
 import { db } from "../../db";
 import { payments } from "../../db/schema";
 import { count, desc, or, eq, and } from "drizzle-orm";
-import { LogPaymentSchema } from "../../api/payments";
+import { LogPaymentSchema, PaymentsQuerySchema } from "../../api/payments";
 import {
   withErrorHandling,
   requireAuth,
   apiResponse,
 } from "../../lib/api-response";
-import { parsePagination, buildPaginatedResponse } from "../../lib/pagination";
+import { DEFAULT_PAGE_LIMIT, buildPaginatedResponse } from "../../lib/pagination";
 import { OK, CREATED } from "../../lib/http";
 
 type Role = "contractor" | "laborer";
@@ -18,8 +18,16 @@ export const GET = withErrorHandling(async (request: Request) => {
   const role = session.user.role;
 
   const url = new URL(request.url);
-  const { limit, offset } = parsePagination(url);
-  const projectId = url.searchParams.get("projectId");
+  const query = PaymentsQuerySchema.parse({
+    limit: url.searchParams.get("limit") || undefined,
+    offset: url.searchParams.get("offset") || undefined,
+    projectId: url.searchParams.get("projectId") || undefined,
+    direction: url.searchParams.get("direction") || undefined,
+  });
+
+  const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+  const offset = query.offset ?? 0;
+  const projectId = query.projectId;
 
   const whereClause =
     role === "contractor"

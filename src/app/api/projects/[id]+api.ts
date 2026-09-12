@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "../../../db";
 import { clients, projects } from "../../../db/schema";
 import {
@@ -7,15 +8,15 @@ import {
   apiError,
   apiResponse,
 } from "../../../lib/api-response";
-import { OK, BAD_REQUEST, NOT_FOUND } from "../../../lib/http";
+import { OK, NOT_FOUND } from "../../../lib/http";
+
+const ProjectIdParamSchema = z.object({
+  id: z.string().min(1, "Missing project ID"),
+});
 
 export const GET = withErrorHandling(async (request: Request, context: Record<string, string>) => {
   await requireAuth(request);
-  const id = context?.id;
-
-  if (!id) {
-    throw apiError(BAD_REQUEST, "Missing project ID");
-  }
+  const { id } = ProjectIdParamSchema.parse(context);
 
   const rows = await db
     .select({

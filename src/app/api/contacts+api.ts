@@ -2,13 +2,18 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../../db";
 import { clients, vendors } from "../../db/schema";
 import {
+  CreateContactSchema,
+  UpdateContactSchema,
+  DeleteContactSchema,
+} from "../../api/contact";
+import {
   withErrorHandling,
   requireAuth,
   requireRole,
   apiError,
   apiResponse,
 } from "../../lib/api-response";
-import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../lib/http";
+import { OK, CREATED, NOT_FOUND } from "../../lib/http";
 
 export const GET = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
@@ -26,17 +31,16 @@ export const GET = withErrorHandling(async (request: Request) => {
 export const POST = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
   requireRole(session, "contractor");
-  const body = await request.json();
-  const { type, ...data } = body;
+  const parsed = CreateContactSchema.parse(await request.json());
 
-  if (type === "client") {
+  if (parsed.type === "client") {
     const newClient = await db
       .insert(clients)
       .values({
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        address: data.address,
+        name: parsed.name,
+        phone: parsed.phone,
+        email: parsed.email,
+        address: parsed.address,
         contractorId: session.user.id,
       })
       .returning();
@@ -46,11 +50,11 @@ export const POST = withErrorHandling(async (request: Request) => {
   const newVendor = await db
     .insert(vendors)
     .values({
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      address: data.address,
-      vendorType: data.vendor_type,
+      name: parsed.name,
+      phone: parsed.phone,
+      email: parsed.email,
+      address: parsed.address,
+      vendorType: parsed.vendor_type,
       contractorId: session.user.id,
     })
     .returning();
@@ -60,23 +64,18 @@ export const POST = withErrorHandling(async (request: Request) => {
 export const PATCH = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
   requireRole(session, "contractor");
-  const body = await request.json();
-  const { id, type, ...data } = body;
+  const parsed = UpdateContactSchema.parse(await request.json());
 
-  if (!id || !type) {
-    throw apiError(BAD_REQUEST, "Missing id or type");
-  }
-
-  if (type === "client") {
+  if (parsed.type === "client") {
     const updatedClient = await db
       .update(clients)
       .set({
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        address: data.address,
+        name: parsed.name,
+        phone: parsed.phone,
+        email: parsed.email,
+        address: parsed.address,
       })
-      .where(and(eq(clients.id, id), eq(clients.contractorId, session.user.id)))
+      .where(and(eq(clients.id, parsed.id), eq(clients.contractorId, session.user.id)))
       .returning();
 
     if (updatedClient.length === 0) {
@@ -89,13 +88,13 @@ export const PATCH = withErrorHandling(async (request: Request) => {
   const updatedVendor = await db
     .update(vendors)
     .set({
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      address: data.address,
-      vendorType: data.vendor_type,
+      name: parsed.name,
+      phone: parsed.phone,
+      email: parsed.email,
+      address: parsed.address,
+      vendorType: parsed.vendor_type,
     })
-    .where(and(eq(vendors.id, id), eq(vendors.contractorId, session.user.id)))
+    .where(and(eq(vendors.id, parsed.id), eq(vendors.contractorId, session.user.id)))
     .returning();
 
   if (updatedVendor.length === 0) {
@@ -109,12 +108,10 @@ export const DELETE = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
   requireRole(session, "contractor");
   const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const type = url.searchParams.get("type");
-
-  if (!id || !type) {
-    throw apiError(BAD_REQUEST, "Missing id or type");
-  }
+  const { id, type } = DeleteContactSchema.parse({
+    id: url.searchParams.get("id"),
+    type: url.searchParams.get("type"),
+  });
 
   if (type === "client") {
     await db.delete(clients).where(and(eq(clients.id, id), eq(clients.contractorId, session.user.id)));

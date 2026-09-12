@@ -1,7 +1,11 @@
 import { db } from "../../db";
 import { attendance, projects, users } from "../../db/schema";
 import { count, eq, desc, and } from "drizzle-orm";
-import { MarkAttendanceSchema, ReviewAttendanceSchema } from "../../api/attendance";
+import {
+  MarkAttendanceSchema,
+  ReviewAttendanceSchema,
+  AttendanceQuerySchema,
+} from "../../api/attendance";
 import {
   withErrorHandling,
   requireAuth,
@@ -9,7 +13,7 @@ import {
   apiError,
   apiResponse,
 } from "../../lib/api-response";
-import { parsePagination, buildPaginatedResponse } from "../../lib/pagination";
+import { DEFAULT_PAGE_LIMIT, buildPaginatedResponse } from "../../lib/pagination";
 import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../lib/http";
 
 export const GET = withErrorHandling(async (request: Request) => {
@@ -18,8 +22,15 @@ export const GET = withErrorHandling(async (request: Request) => {
   const role = session.user.role;
 
   const url = new URL(request.url);
-  const { limit, offset } = parsePagination(url);
-  const projectId = url.searchParams.get("projectId");
+  const query = AttendanceQuerySchema.parse({
+    projectId: url.searchParams.get("projectId") || undefined,
+    limit: url.searchParams.get("limit") || undefined,
+    offset: url.searchParams.get("offset") || undefined,
+  });
+
+  const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+  const offset = query.offset ?? 0;
+  const projectId = query.projectId;
 
   if (role === "contractor") {
     const whereClause = and(

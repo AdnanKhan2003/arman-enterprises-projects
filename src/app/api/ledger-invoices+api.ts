@@ -1,7 +1,12 @@
 import { db } from "../../db";
 import { ledgerInvoices, projects } from "../../db/schema";
 import { count, eq, desc, and } from "drizzle-orm";
-import { CreateLedgerInvoiceSchema, UpdateLedgerInvoiceSchema } from "../../api/ledgerInvoices";
+import {
+  CreateLedgerInvoiceSchema,
+  UpdateLedgerInvoiceSchema,
+  DeleteLedgerInvoiceSchema,
+  LedgerInvoiceQuerySchema,
+} from "../../api/ledgerInvoices";
 import {
   withErrorHandling,
   requireAuth,
@@ -9,8 +14,8 @@ import {
   apiError,
   apiResponse,
 } from "../../lib/api-response";
-import { parsePagination, buildPaginatedResponse } from "../../lib/pagination";
-import { OK, CREATED, BAD_REQUEST, NOT_FOUND } from "../../lib/http";
+import { DEFAULT_PAGE_LIMIT, buildPaginatedResponse } from "../../lib/pagination";
+import { OK, CREATED, NOT_FOUND } from "../../lib/http";
 
 export const GET = withErrorHandling(async (request: Request) => {
   const session = await requireAuth(request);
@@ -18,8 +23,15 @@ export const GET = withErrorHandling(async (request: Request) => {
   const userId = session.user.id;
 
   const url = new URL(request.url);
-  const { limit, offset } = parsePagination(url);
-  const projectId = url.searchParams.get("projectId");
+  const query = LedgerInvoiceQuerySchema.parse({
+    projectId: url.searchParams.get("projectId") || undefined,
+    limit: url.searchParams.get("limit") || undefined,
+    offset: url.searchParams.get("offset") || undefined,
+  });
+
+  const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+  const offset = query.offset ?? 0;
+  const projectId = query.projectId;
 
   const whereClause = projectId
     ? and(eq(ledgerInvoices.contractorId, userId), eq(ledgerInvoices.projectId, projectId))
@@ -53,8 +65,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   requireRole(session, "contractor");
   const userId = session.user.id;
 
-  const body = await request.json();
-  const parsed = CreateLedgerInvoiceSchema.parse(body);
+  const parsed = CreateLedgerInvoiceSchema.parse(await request.json());
 
   const { title, scope, format, items, project_id } = parsed;
   const inserted = await db
@@ -70,8 +81,7 @@ export const PUT = withErrorHandling(async (request: Request) => {
   requireRole(session, "contractor");
   const userId = session.user.id;
 
-  const body = await request.json();
-  const parsed = UpdateLedgerInvoiceSchema.parse(body);
+  const parsed = UpdateLedgerInvoiceSchema.parse(await request.json());
 
   const { id, title, scope, format, items, project_id } = parsed;
   const updated = await db
@@ -100,10 +110,7 @@ export const DELETE = withErrorHandling(async (request: Request) => {
   const userId = session.user.id;
 
   const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  if (!id) {
-    throw apiError(BAD_REQUEST, "Missing id parameter");
-  }
+  const { id } = DeleteLedgerInvoiceSchema.parse({ id: url.searchParams.get("id") });
 
   await db
     .delete(ledgerInvoices)

@@ -3,22 +3,33 @@ import { apiFetch } from "../lib/auth-client";
 
 export const CreateProjectSchema = z.object({
   contractor_id: z.string().optional(),
-  client_id: z.string().optional(),
-  name: z.string().min(1, "Project name is required"),
-  location: z.string().optional(),
-  description: z.string().optional(),
+  client_id: z.string().nullable().optional(),
+  name: z.string().trim().min(1, "Project name is required"),
+  location: z.string().trim().optional(),
+  description: z.string().trim().optional(),
   laborer_ids: z.array(z.string()).optional(),
 });
 
+export const UpdateProjectSchema = z.object({
+  id: z.string().min(1, "Project ID is required"),
+  name: z.string().trim().min(1, "Project name cannot be empty").optional(),
+  location: z.string().trim().optional(),
+  description: z.string().trim().optional(),
+  client_id: z.string().nullable().optional(),
+  laborer_ids: z.array(z.string()).optional(),
+  status: z.enum(["active", "completed"]).optional(),
+});
+
 export const AssignLaborerSchema = z.object({
-  projectId: z.string(),
-  laborerId: z.string(),
+  projectId: z.string().min(1, "Project ID is required"),
+  laborerId: z.string().min(1, "Laborer ID is required"),
+});
+
+export const DeleteProjectSchema = z.object({
+  id: z.string().min(1, "Project ID is required"),
 });
 
 export const projectsApi = {
-  /**
-   * Fetch projects based on user role
-   */
   async getProjects(role: "contractor" | "laborer", userId: string) {
     try {
       const json = await apiFetch('/api/projects');
@@ -28,9 +39,6 @@ export const projectsApi = {
     }
   },
 
-  /**
-   * Fetch details for a specific project
-   */
   async getProjectDetails(projectId: string) {
     try {
       const json = await apiFetch(`/api/projects/${projectId}`);
@@ -40,31 +48,14 @@ export const projectsApi = {
     }
   },
 
-  /**
-   * Create a new project (Contractors only)
-   */
-  async createProject(projectData: {
-    contractor_id: string;
-    client_id?: string;
-    name: string;
-    location?: string;
-    description?: string;
-    laborer_ids?: string[];
-  }) {
+  async createProject(projectData: z.infer<typeof CreateProjectSchema>) {
     try {
       const parsed = CreateProjectSchema.safeParse(projectData);
       if (!parsed.success) throw parsed.error;
 
       const json = await apiFetch('/api/projects', {
         method: 'POST',
-        body: JSON.stringify({
-          contractor_id: parsed.data.contractor_id,
-          client_id: parsed.data.client_id,
-          name: parsed.data.name,
-          location: parsed.data.location,
-          description: parsed.data.description,
-          laborer_ids: parsed.data.laborer_ids,
-        })
+        body: JSON.stringify(parsed.data),
       });
       
       return { data: json.data, error: null };
@@ -73,9 +64,6 @@ export const projectsApi = {
     }
   },
 
-  /**
-   * Assign a laborer to a project (Contractors only)
-   */
   async assignLaborerToProject(projectId: string, laborerId: string) {
     try {
       const parsed = AssignLaborerSchema.safeParse({ projectId, laborerId });
@@ -83,7 +71,7 @@ export const projectsApi = {
 
       const json = await apiFetch('/api/projects/assign', {
         method: 'POST',
-        body: JSON.stringify(parsed.data)
+        body: JSON.stringify(parsed.data),
       });
       
       return { data: json.data, error: null };
@@ -92,14 +80,14 @@ export const projectsApi = {
     }
   },
 
-  /**
-   * Update a project's details
-   */
-  async updateProject(id: string, data: { name?: string; location?: string; description?: string; client_id?: string; laborer_ids?: string[]; status?: string }) {
+  async updateProject(id: string, data: Partial<z.infer<typeof UpdateProjectSchema>>) {
     try {
+      const parsed = UpdateProjectSchema.safeParse({ id, ...data });
+      if (!parsed.success) throw parsed.error;
+
       const json = await apiFetch('/api/projects', {
         method: 'PATCH',
-        body: JSON.stringify({ id, ...data })
+        body: JSON.stringify(parsed.data),
       });
       return { data: json.data, error: null };
     } catch (error) {
@@ -107,15 +95,14 @@ export const projectsApi = {
     }
   },
 
-  /**
-   * Mark a project completed or reopen it. Preferred over deleting: it keeps the
-   * timesheet and money history intact.
-   */
   async setProjectStatus(id: string, status: "active" | "completed") {
     try {
+      const parsed = UpdateProjectSchema.safeParse({ id, status });
+      if (!parsed.success) throw parsed.error;
+
       const json = await apiFetch('/api/projects', {
         method: 'PATCH',
-        body: JSON.stringify({ id, status })
+        body: JSON.stringify(parsed.data),
       });
       return { data: json.data, error: null };
     } catch (error) {
@@ -123,17 +110,17 @@ export const projectsApi = {
     }
   },
 
-  /**
-   * Delete a project and all its associated records
-   */
   async deleteProject(id: string) {
     try {
-      const json = await apiFetch(`/api/projects?id=${id}`, {
+      const parsed = DeleteProjectSchema.safeParse({ id });
+      if (!parsed.success) throw parsed.error;
+
+      const json = await apiFetch(`/api/projects?id=${parsed.data.id}`, {
         method: 'DELETE',
       });
-      return { data: json, error: null };
+      return { data: json.data || json, error: null };
     } catch (error) {
       return { data: null, error };
     }
-  }
+  },
 };

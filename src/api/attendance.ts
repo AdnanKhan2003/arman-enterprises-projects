@@ -2,25 +2,26 @@ import { z } from "zod";
 import { apiFetch } from "../lib/auth-client";
 
 export const MarkAttendanceSchema = z.object({
-  project_id: z.string(),
+  project_id: z.string().min(1, "Project ID is required"),
   laborer_id: z.string().optional(),
   work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format, expected YYYY-MM-DD"),
   action: z.enum(["check_in", "check_out"]),
 });
 
 export const ReviewAttendanceSchema = z.object({
-  attendanceId: z.string(),
+  attendanceId: z.string().min(1, "Attendance ID is required"),
   contractorId: z.string().optional(),
   status: z.enum(["Approved", "Rejected"]),
 });
 
+export const AttendanceQuerySchema = z.object({
+  projectId: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(100).optional(),
+  offset: z.coerce.number().int().nonnegative().optional(),
+});
+
 export const attendanceApi = {
-  async markAttendance(data: {
-    project_id: string;
-    laborer_id?: string;
-    work_date: string;
-    action: "check_in" | "check_out";
-  }) {
+  async markAttendance(data: z.infer<typeof MarkAttendanceSchema>) {
     try {
       const parsed = MarkAttendanceSchema.safeParse(data);
       if (!parsed.success) throw parsed.error;
@@ -36,15 +37,17 @@ export const attendanceApi = {
     }
   },
 
-  async getPendingAttendance(params?: { projectId?: string; limit?: number; offset?: number } | string) {
+  async getPendingAttendance(params?: z.infer<typeof AttendanceQuerySchema> | string) {
     try {
       const searchParams = new URLSearchParams();
       if (typeof params === "string") {
         searchParams.set("projectId", params);
       } else if (params) {
-        if (params.projectId) searchParams.set("projectId", params.projectId);
-        if (params.limit) searchParams.set("limit", String(params.limit));
-        if (params.offset) searchParams.set("offset", String(params.offset));
+        const parsed = AttendanceQuerySchema.safeParse(params);
+        const valid = parsed.success ? parsed.data : params;
+        if (valid.projectId) searchParams.set("projectId", valid.projectId);
+        if (valid.limit) searchParams.set("limit", String(valid.limit));
+        if (valid.offset !== undefined) searchParams.set("offset", String(valid.offset));
       }
 
       const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
@@ -76,13 +79,15 @@ export const attendanceApi = {
     }
   },
 
-  async getLaborerAttendanceHistory(params?: { laborerId?: string; projectId?: string; limit?: number; offset?: number } | string) {
+  async getLaborerAttendanceHistory(params?: z.infer<typeof AttendanceQuerySchema> | string) {
     try {
       const searchParams = new URLSearchParams();
       if (typeof params === "object" && params) {
-        if (params.projectId) searchParams.set("projectId", params.projectId);
-        if (params.limit) searchParams.set("limit", String(params.limit));
-        if (params.offset) searchParams.set("offset", String(params.offset));
+        const parsed = AttendanceQuerySchema.safeParse(params);
+        const valid = parsed.success ? parsed.data : params;
+        if (valid.projectId) searchParams.set("projectId", valid.projectId);
+        if (valid.limit) searchParams.set("limit", String(valid.limit));
+        if (valid.offset !== undefined) searchParams.set("offset", String(valid.offset));
       }
 
       const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
