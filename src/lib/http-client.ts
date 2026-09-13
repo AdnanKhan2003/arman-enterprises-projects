@@ -1,16 +1,5 @@
 import axios from "axios";
-import Constants from "expo-constants";
-import { Platform } from "react-native";
-import { authClient } from "./auth-client";
-
-let apiBaseURL = "http://localhost:8081";
-
-if (process.env.EXPO_PUBLIC_API_URL) {
-  apiBaseURL = process.env.EXPO_PUBLIC_API_URL;
-} else if (Platform.OS !== "web" && Constants.expoConfig?.hostUri) {
-  const host = Constants.expoConfig.hostUri.split(":")[0];
-  apiBaseURL = `http://${host}:8081`;
-}
+import { apiBaseURL, authClient } from "./auth-client";
 
 export const apiClient = axios.create({
   baseURL: apiBaseURL,
